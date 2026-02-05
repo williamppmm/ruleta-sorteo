@@ -1,0 +1,869 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sorteo en Vivo</title>
+  <style>
+    :root{--bg:#081524;--bg2:#122a44;--card:#132e4d;--txt:#f0f6ff;--muted:#b8cbe1;--ok:#8dff9e;--warn:#ffd971;--danger:#ff8383;--accent:#22d3a6;--neon:#54f0ff;--neon2:#ff7ad9}
+    *{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Segoe UI,Tahoma,sans-serif;background:radial-gradient(circle at 20% 0,#1e4977,#081524 55%);color:var(--txt)}
+    body::before{
+      content:"";position:fixed;inset:-10% -10%;z-index:-2;
+      background:
+        radial-gradient(60% 50% at 20% 10%, rgba(84,240,255,.18), transparent 60%),
+        radial-gradient(60% 50% at 80% 20%, rgba(255,122,217,.16), transparent 60%),
+        radial-gradient(70% 60% at 50% 90%, rgba(34,211,166,.12), transparent 65%);
+      filter: blur(20px);
+      animation: aurora 12s ease-in-out infinite alternate;
+    }
+    body::after{
+      content:"";position:fixed;inset:0;z-index:-3;
+      background: linear-gradient(120deg, rgba(10,20,35,.9), rgba(5,10,18,.95));
+    }
+    @keyframes aurora{
+      0%{transform:translateY(-2%) translateX(-1%) scale(1);}
+      50%{transform:translateY(1%) translateX(1%) scale(1.02);}
+      100%{transform:translateY(2%) translateX(2%) scale(1.04);}
+    }
+    .app{max-width:1300px;margin:0 auto;padding:14px}.top{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .btn{border:0;border-radius:10px;padding:10px 14px;background:#1f446d;color:#fff;font-weight:700;cursor:pointer}.btn:hover{opacity:.93}.btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn.primary{background:linear-gradient(90deg,#19b88e,#22d3a6);color:#05382c}.btn.warn{background:#7f5a1f}.btn.danger{background:#7e2b36}
+    .pill{background:#163252;border:1px solid #2e557e;padding:7px 10px;border-radius:999px;font-size:.9rem}
+    .grid{display:grid;gap:12px}.layout{grid-template-columns:380px 1fr}@media (max-width:960px){.layout{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg,rgba(19,46,77,.78),rgba(15,39,64,.78));border:1px solid rgba(84,240,255,.25);border-radius:14px;padding:14px;backdrop-filter:blur(10px);box-shadow:0 0 20px rgba(84,240,255,.08)}
+    h1,h2,h3,p{margin:0}h1{font-size:1.4rem}h2{font-size:1.12rem}.muted{color:var(--muted)}.stack{display:grid;gap:10px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}label{font-size:.9rem;color:#d5e2f2}
+    input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #3b5b81;background:#0d2136;color:#fff}
+    .status.ok{color:var(--ok)}.status.closed{color:var(--danger)}.counter{font-size:2rem;font-weight:900;color:var(--warn)}
+    .small{font-size:.85rem;color:var(--muted)}.msg{padding:8px;border-radius:8px;font-size:.88rem}
+    .msg.error{background:#572535;color:#ffd7df}.msg.ok{background:#1f4d39;color:#d5ffe0}
+    .tbl{max-height:66vh;overflow:auto;border-radius:10px;border:1px solid #33547a}table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #2b4c74;text-align:left}th{position:sticky;top:0;background:#1a3e64}
+    .hidden{display:none!important}
+
+    .proj{min-height:calc(100vh - 70px);display:grid;place-items:center;text-align:center;background:
+      radial-gradient(600px 280px at 10% 10%,rgba(34,211,166,.22),transparent 65%),
+      radial-gradient(700px 300px at 90% 90%,rgba(255,217,113,.22),transparent 65%),#070f1a;border-radius:16px;border:1px solid #36557d;position:relative;overflow:hidden}
+    .proj.glass{background:linear-gradient(180deg,rgba(10,24,42,.78),rgba(10,24,42,.9));backdrop-filter:blur(12px)}
+    .proj.hype{animation: hype 1.2s ease-in-out 1}
+    @keyframes hype{
+      0%{transform:scale(1);filter:blur(0)}
+      30%{transform:scale(1.01) translateY(-2px);filter:blur(0.5px)}
+      60%{transform:scale(1.005) translateY(1px);filter:blur(0)}
+      100%{transform:scale(1)}
+    }
+    .proj-box{width:min(1100px,95vw);padding:18px}.title{font-size:clamp(1.3rem,3.5vw,2.2rem);font-weight:700;opacity:0.8;margin-bottom:10px}
+    .meta{font-size:clamp(0.85rem,1.8vw,1.1rem);color:#b8cbe1;margin-top:6px;opacity:0.7}.prize{font-size:clamp(2rem,5vw,4rem);color:#ffd971;font-weight:900;margin-top:5px;text-shadow:0 0 30px rgba(255,217,113,0.6),0 0 60px rgba(255,217,113,0.3);margin-bottom:10px;animation:prizeGlow 3s ease-in-out infinite}
+    @keyframes prizeGlow{0%,100%{text-shadow:0 0 30px rgba(255,217,113,0.6),0 0 60px rgba(255,217,113,0.3)}50%{text-shadow:0 0 40px rgba(255,217,113,0.9),0 0 80px rgba(255,217,113,0.5)}}
+
+    .grid-container{position:relative;margin:20px auto;max-width:min(900px,95vw);padding:20px;background:linear-gradient(135deg,rgba(15,39,64,0.6),rgba(18,46,77,0.6));border:2px solid rgba(84,240,255,0.3);border-radius:20px;backdrop-filter:blur(10px);box-shadow:0 10px 40px rgba(0,0,0,0.5)}
+    .participants-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;position:relative}
+    .participant-box{position:relative;padding:20px 12px;border-radius:12px;font-weight:700;font-size:clamp(0.85rem,1.3vw,1.05rem);color:#fff;text-align:center;border:2px solid transparent;transition:all 0.15s;cursor:default;text-shadow:0 2px 6px rgba(0,0,0,0.8);min-height:70px;display:flex;align-items:center;justify-content:center;word-break:break-word;overflow:hidden}
+    .participant-box.color-1{background:linear-gradient(135deg,#1a5588,#134068)}
+    .participant-box.color-2{background:linear-gradient(135deg,#2d5f8d,#1e4565)}
+    .participant-box.color-3{background:linear-gradient(135deg,#2a6a95,#1c4d6f)}
+    .participant-box.color-4{background:linear-gradient(135deg,#1e5075,#143a55)}
+    .participant-box.color-5{background:linear-gradient(135deg,#2b5d85,#1a3e5d)}
+    .participant-box.color-6{background:linear-gradient(135deg,#1d4a6f,#12344f)}
+    .participant-box.active{border-color:#ffd971;box-shadow:0 0 30px rgba(255,217,113,0.8),inset 0 0 20px rgba(255,217,113,0.3);transform:scale(1.05);animation:pulseActive 0.3s ease-in-out;z-index:10}
+    @keyframes pulseActive{0%,100%{transform:scale(1.05)}50%{transform:scale(1.08)}}
+    .participant-box.winner{border-color:#22d3a6;background:linear-gradient(135deg,#22d3a6,#19b88e);box-shadow:0 0 50px rgba(34,211,166,1),inset 0 0 30px rgba(255,255,255,0.3);transform:scale(1.1);animation:winnerPulse 1s ease-in-out infinite;z-index:20}
+    @keyframes winnerPulse{0%,100%{box-shadow:0 0 50px rgba(34,211,166,1),inset 0 0 30px rgba(255,255,255,0.3)}50%{box-shadow:0 0 70px rgba(34,211,166,1),0 0 90px rgba(34,211,166,0.6),inset 0 0 40px rgba(255,255,255,0.4)}}
+
+    .particles-canvas{position:absolute;inset:0;pointer-events:none;z-index:1}
+
+    .winner{background:linear-gradient(135deg,rgba(15,39,64,0.95),rgba(18,46,77,0.95));border:2px solid rgba(84,240,255,0.5);border-radius:16px;padding:20px;min-height:100px;box-shadow:0 10px 40px rgba(0,0,0,0.5),0 0 30px rgba(84,240,255,0.2);backdrop-filter:blur(10px);margin-top:15px;position:relative;overflow:hidden}
+    .winner-main{font-size:clamp(1rem,2.6vw,1.8rem)}
+    .winner.celebrating{animation:celebrate 0.6s ease-in-out}
+    @keyframes celebrate{0%,100%{transform:scale(1)}25%{transform:scale(1.02) rotate(1deg)}50%{transform:scale(1.04) rotate(-1deg)}75%{transform:scale(1.02) rotate(0.5deg)}}
+    .actions{margin-top:20px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+    .actions .btn.primary{font-size:1.2rem;padding:16px 40px;min-width:250px;box-shadow:0 4px 15px rgba(34,211,166,0.4);transition:all 0.3s}
+    .actions .btn.primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 25px rgba(34,211,166,0.6)}
+    .actions .btn.primary:disabled{opacity:0.6;cursor:not-allowed}
+    .winners-list{margin-top:15px;text-align:left;background:rgba(14,36,59,0.6);border:1px solid rgba(53,87,122,0.5);border-radius:12px;padding:14px;backdrop-filter:blur(8px)}
+    .winners-list h3{margin:0 0 10px 0;font-size:1.1rem;color:#54f0ff}
+    .winners-list ul{margin:0;padding-left:20px;font-size:0.95rem}
+    .winners-list li{margin:6px 0;color:#d8e7ff}
+    .history{display:grid;gap:7px}.history div{padding:8px;border-radius:8px;border:1px solid #35557a;background:#112942}
+
+    /* Overlay - estructura exacta del codigo funcional */
+    .reveal-overlay{position:absolute;inset:0;background:radial-gradient(1200px 600px at 50% 20%, rgba(45,107,255,.22), rgba(0,0,0,.78));display:none;z-index:100}
+    .reveal-overlay.show{display:grid}
+    .reveal-inner{display:grid;place-items:center;padding:24px}
+    .reveal-card{background:linear-gradient(135deg,#22d3a6,#19b88e);padding:50px 70px;border-radius:24px;font-size:clamp(1.8rem,5vw,3.8rem);font-weight:900;color:#fff;text-shadow:0 4px 20px rgba(0,0,0,0.7),0 0 40px rgba(255,255,255,0.3);box-shadow:0 25px 80px rgba(34,211,166,0.8),0 0 120px rgba(34,211,166,0.5),inset 0 0 40px rgba(255,255,255,0.2);transform:scale(0.5);animation:revealPop 0.8s cubic-bezier(0.68,-0.55,0.265,1.55) forwards;border:3px solid rgba(255,255,255,0.4);position:relative}
+    @keyframes revealPop{0%{transform:scale(0.5) rotate(-8deg);opacity:0}60%{transform:scale(1.15) rotate(3deg)}80%{transform:scale(0.95) rotate(-1deg)}100%{transform:scale(1) rotate(0deg);opacity:1}}
+
+    /* Canvas confetti - exacto del codigo funcional */
+    #confetti{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="top">
+      <button class="btn" id="goOperator">Modo Operador</button>
+      <button class="btn" id="goProjection">Modo Proyeccion</button>
+      <span class="pill">Offline tras carga: SI</span>
+      <span class="pill">Sorteos guardados: <b id="drawCount">0</b></span>
+    </div>
+
+    <section id="operatorView">
+      <div class="grid layout">
+        <div class="card stack">
+          <h1>Registro / Control</h1>
+          <p class="small">Operador: configura, registra participantes y cierra el registro.</p>
+
+          <div class="stack">
+            <h2>Configuracion</h2>
+            <label>Titulo (opcional)</label>
+            <input id="drawTitle" maxlength="100" placeholder="Ej. Sorteo de Aniversario" />
+            <div class="row">
+              <div>
+                <label>Hora del sorteo (HH:MM)</label>
+                <input id="drawTime" type="time" />
+              </div>
+              <div>
+                <label>Pool proximos sorteos</label>
+                <select id="excludeWinners">
+                  <option value="false">Incluir ganadores previos</option>
+                  <option value="true">Excluir ganadores previos</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn" id="saveConfig">Guardar configuracion</button>
+            <div id="cfgMsg" class="small"></div>
+          </div>
+
+          <div class="stack">
+            <h2>Nuevo participante</h2>
+            <label>Nombre *</label>
+            <input id="name" maxlength="120" list="knownNames" />
+            <datalist id="knownNames"></datalist>
+            <button class="btn primary" id="register">Registrar</button>
+            <div id="regMsg" class="small">Tip: puedes presionar ENTER para registrar rapido.</div>
+          </div>
+
+          <div class="stack">
+            <h2>Correccion de nombre (antes de cerrar)</h2>
+            <div class="row">
+              <div>
+                <label>Participante</label>
+                <select id="editParticipant"></select>
+              </div>
+              <div>
+                <label>Nombre corregido</label>
+                <input id="editName" maxlength="120" placeholder="Nuevo nombre" />
+              </div>
+            </div>
+            <button class="btn" id="applyNameFix">Aplicar correccion</button>
+            <div id="editMsg" class="small"></div>
+          </div>
+
+          <div class="stack">
+            <h2>Estado</h2>
+            <div class="counter" id="total">0</div>
+            <div class="small">Total registrados</div>
+            <div id="countdown">Configura hora del sorteo.</div>
+            <div id="regStatus" class="status ok">Registro abierto</div>
+            <button class="btn danger" id="closeNow">Cerrar registro ahora</button>
+            <div class="row">
+              <div><label>Valor del premio</label><input id="prize" maxlength="80" disabled /></div>
+              <div style="display:flex;align-items:end"><button class="btn primary" id="toProjection" disabled style="width:100%">Ir a pantalla del sorteo</button></div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <h2>Historial / Exportar</h2>
+            <div class="row">
+              <button class="btn" id="exportJson">JSON</button>
+              <button class="btn" id="exportCsv">CSV</button>
+            </div>
+            <button class="btn danger" id="clearData">Borrar datos previos</button>
+            <div id="history" class="history"></div>
+          </div>
+
+          <div class="small">
+            <b>Instrucciones rapidas</b><br />
+            - Operador: registra y controla.<br />
+            - Proyeccion: inicia el sorteo para pantalla grande.
+          </div>
+        </div>
+
+        <div class="card stack">
+          <h2>Listado en orden exacto de registro</h2>
+          <div class="tbl">
+            <table>
+              <thead><tr><th>#</th><th>Nombre</th><th>Hora</th></tr></thead>
+              <tbody id="participantsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="projectionView" class="hidden">
+      <div class="proj glass" id="projectionShell">
+        <!-- Estructura HTML exacta del codigo funcional -->
+        <div class="reveal-overlay" id="revealOverlay">
+          <canvas id="confetti"></canvas>
+          <div class="reveal-inner">
+            <div class="reveal-card" id="revealCard">¡Ganador revelado!</div>
+          </div>
+        </div>
+
+        <div class="proj-box">
+          <div id="pTitle" class="title">Sorteo en Vivo</div>
+          <div id="pPrize" class="prize">Premio: --</div>
+
+          <div class="grid-container">
+            <canvas class="particles-canvas" id="particlesCanvas"></canvas>
+            <div class="participants-grid" id="participantsGrid"></div>
+          </div>
+
+          <div class="actions">
+            <button class="btn primary" id="start">INICIAR SORTEO</button>
+          </div>
+
+          <div id="winner" class="winner">
+            <div id="winnerMain" class="winner-main">Pulsa INICIAR SORTEO para comenzar</div>
+            <div class="winners-list">
+              <h3>🏆 Ganadores de esta ronda</h3>
+              <ul id="sessionWinners"><li style="opacity:0.6;font-style:italic">Aún no hay ganadores</li></ul>
+            </div>
+          </div>
+
+          <div style="margin-top:20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;opacity:0.7">
+            <button class="btn hidden" id="savePrepare">Guardar y preparar otro</button>
+            <button class="btn hidden" id="newDraw">Nuevo sorteo</button>
+            <span id="countStatus" class="pill" style="display:inline-block;padding:8px 14px">Participantes: 0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const DB_NAME = "live_raffle_db", DB_VERSION = 2;
+    const S = { P: "participants", D: "draws", C: "config", K: "knownClients" };
+    const state = {
+      participants: [], draws: [], knownClients: [],
+      config: { title: "", time: "", closed: false, closedAt: null, prize: "", excludeWinners: false, sessionDrawIds: [] },
+      spinning: false,
+      soundOn: true
+    };
+    const $ = (id) => document.getElementById(id);
+    const pad = (n) => String(n).padStart(2, "0");
+    let db;
+
+    function nowISO() { return new Date().toISOString(); }
+    function fmtTime(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+    function fmtLong(d) {
+      const day = ["domingo","lunes","martes","miercoles","jueves","viernes","sabado"][d.getDay()];
+      const month = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][d.getMonth()];
+      return `${day} ${d.getDate()} de ${month} de ${d.getFullYear()}`;
+    }
+    function safeText(v){return String(v||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
+    function norm(v){return (v||"").trim().toLowerCase().replace(/\s+/g," ");}
+    function secureIndex(max){
+      const buf = new Uint32Array(1); const limit = 0xFFFFFFFF - (0xFFFFFFFF % max); let x;
+      do { crypto.getRandomValues(buf); x = buf[0]; } while (x >= limit);
+      return x % max;
+    }
+    function beep(freq=880, dur=0.06, gain=0.05){
+      if (!state.soundOn) return;
+      const ctx = beep.ctx || (beep.ctx = new (window.AudioContext||window.webkitAudioContext)());
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine"; o.frequency.value = freq;
+      g.gain.value = gain;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + dur);
+    }
+    function ding(){
+      beep(880,0.09,0.06); setTimeout(()=>beep(1320,0.12,0.05),80);
+    }
+
+    function openDB(){
+      return new Promise((resolve,reject)=>{
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = () => {
+          const d = req.result;
+          if (!d.objectStoreNames.contains(S.P)) d.createObjectStore(S.P,{keyPath:"id",autoIncrement:true});
+          if (!d.objectStoreNames.contains(S.D)) d.createObjectStore(S.D,{keyPath:"id",autoIncrement:true});
+          if (!d.objectStoreNames.contains(S.C)) d.createObjectStore(S.C,{keyPath:"key"});
+          if (!d.objectStoreNames.contains(S.K)) d.createObjectStore(S.K,{keyPath:"key"});
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    function reqP(req){return new Promise((res,rej)=>{req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error);});}
+    function os(name,mode="readonly"){return db.transaction(name,mode).objectStore(name);}
+    async function saveConfig(){await reqP(os(S.C,"readwrite").put({key:"app",value:state.config}));}
+    function todayAt(hhmm){ if(!hhmm) return null; const [h,m]=hhmm.split(":").map(Number); const d=new Date(); d.setHours(h,m,0,0); return d; }
+    function closedByTime(){ const t=todayAt(state.config.time); return t ? new Date() >= t : false; }
+
+    async function load(){
+      state.participants=(await reqP(os(S.P).getAll())).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+      state.draws=(await reqP(os(S.D).getAll())).sort((a,b)=>new Date(b.drawAt)-new Date(a.drawAt));
+      state.knownClients=(await reqP(os(S.K).getAll())).sort((a,b)=>a.name.localeCompare(b.name));
+      const c = await reqP(os(S.C).get("app")); if (c && c.value) state.config = { ...state.config, ...c.value };
+      if (!state.config.closed && closedByTime()) { state.config.closed = true; state.config.closedAt = nowISO(); await saveConfig(); }
+    }
+
+    function showMsg(id, text, type){
+      const el = $(id); if (!el) return;
+      el.className = type ? `msg ${type}` : "small"; el.textContent = text || "";
+    }
+
+    function renderParticipants(){
+      const body = $("participantsBody"); body.innerHTML = "";
+      state.participants.forEach((p,i)=>{
+        const tr=document.createElement("tr"); const t=new Date(p.createdAt);
+        tr.innerHTML=`<td>${i+1}</td><td>${safeText(p.name)}</td><td>${fmtTime(t)}</td>`;
+        body.appendChild(tr);
+      });
+      $("total").textContent = state.participants.length;
+      renderEditOptions();
+    }
+    function renderEditOptions(){
+      const sel = $("editParticipant");
+      sel.innerHTML = "";
+      const empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = state.participants.length ? "Selecciona participante" : "Sin participantes";
+      sel.appendChild(empty);
+      state.participants.forEach((p,i)=>{
+        const op = document.createElement("option");
+        op.value = String(p.id);
+        op.textContent = `${i + 1}. ${p.name}`;
+        sel.appendChild(op);
+      });
+    }
+    function renderKnownClients(){
+      const dl = $("knownNames");
+      dl.innerHTML = "";
+      state.knownClients.forEach((c)=>{
+        const op = document.createElement("option");
+        op.value = c.name;
+        dl.appendChild(op);
+      });
+    }
+    function renderHistory(){
+      const h = $("history"); h.innerHTML = "";
+      state.draws.slice(0,20).forEach(d=>{
+        const div=document.createElement("div");
+        div.innerHTML = `<b>${safeText(d.winnerName)}</b> - ${safeText(d.prize||"Sin premio")}<br><span class="small">${fmtLong(new Date(d.drawAt))} ${d.time} | cierre: ${d.closedAt ? new Date(d.closedAt).toLocaleString() : "n/d"}</span>`;
+        h.appendChild(div);
+      });
+      $("drawCount").textContent = state.draws.length;
+    }
+    function setIfNotEditing(id, value){
+      const el = $(id);
+      if (document.activeElement !== el) el.value = value;
+    }
+    function renderConfig(){
+      setIfNotEditing("drawTitle", state.config.title || "");
+      setIfNotEditing("drawTime", state.config.time || "");
+      setIfNotEditing("excludeWinners", String(!!state.config.excludeWinners));
+      $("prize").value = state.config.prize || "";
+      const isClosed = state.config.closed || closedByTime();
+      if (isClosed && !state.config.closed) state.config.closed = true;
+      $("regStatus").textContent = isClosed ? "Registro cerrado" : "Registro abierto";
+      $("regStatus").className = `status ${isClosed ? "closed" : "ok"}`;
+      ["name","register","closeNow","editParticipant","editName","applyNameFix"].forEach(id => $(id).disabled = isClosed);
+      $("prize").disabled = !isClosed;
+      $("toProjection").disabled = !isClosed;
+      $("pTitle").textContent = state.config.title || "Sorteo en Vivo";
+      $("pPrize").textContent = state.config.prize || "Ingresa el premio";
+      updateProjectionStatus();
+    }
+    function updateProjectionStatus(){
+      const count = $("countStatus");
+      count.textContent = `Participantes: ${state.participants.length}`;
+    }
+    function renderCountdown(){
+      const lbl = $("countdown");
+      if (!state.config.time) { lbl.textContent = "Configura hora del sorteo."; return; }
+      const target = todayAt(state.config.time); let diff = target - new Date();
+      if (diff <= 0) { lbl.textContent = "Llego la hora del sorteo."; return; }
+      const h = Math.floor(diff / 3600000); diff -= h * 3600000; const m = Math.floor(diff / 60000);
+      lbl.textContent = `Faltan ${h} horas ${m} minutos para el sorteo`;
+    }
+
+    function validateDup({name, excludeId = null}){
+      const n = norm(name);
+      for (const p of state.participants){
+        if (excludeId && p.id === excludeId) continue;
+        if (n && n === norm(p.name)) return "Nombre duplicado en el registro actual.";
+      } return "";
+    }
+    async function rememberKnownClient(name){
+      const clean = name.trim();
+      if (!clean) return;
+      const key = norm(clean);
+      await reqP(os(S.K,"readwrite").put({ key, name: clean }));
+      const i = state.knownClients.findIndex((c)=>c.key===key);
+      if (i >= 0) state.knownClients[i].name = clean;
+      else state.knownClients.push({ key, name: clean });
+      state.knownClients.sort((a,b)=>a.name.localeCompare(b.name));
+      renderKnownClients();
+    }
+
+    function winnerPool(){
+      if (!state.config.excludeWinners) return state.participants;
+      const winners = new Set(state.draws.map(d => d.winnerId));
+      return state.participants.filter(p => !winners.has(p.id));
+    }
+    function getSessionDraws(){
+      const ids = state.config.sessionDrawIds || [];
+      const byId = new Map(state.draws.map((d)=>[d.id,d]));
+      return ids.map((id)=>byId.get(id)).filter(Boolean);
+    }
+    function renderSessionWinners(){
+      const ul = $("sessionWinners");
+      ul.innerHTML = "";
+      const draws = getSessionDraws();
+      if (!draws.length){
+        ul.innerHTML = '<li style="opacity:0.6;font-style:italic">Aún no hay ganadores</li>';
+        updateDrawControls();
+        return;
+      }
+      draws.forEach((d, i)=>{
+        const li = document.createElement("li");
+        const emoji = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🏅";
+        li.innerHTML = `<span style="font-size:1.2em">${emoji}</span> <b style="color:#54f0ff">${safeText(d.winnerName)}</b> <span style="opacity:0.7">→</span> <b style="color:#ffd971">${safeText(d.prize || "Sin premio")}</b>`;
+        li.style.marginBottom = "8px";
+        ul.appendChild(li);
+      });
+      updateDrawControls();
+    }
+    function fillGrid(pool){
+      const names = pool.length ? pool.map(p=>p.name) : ["Sin participantes"];
+      const grid = $("participantsGrid");
+      grid.innerHTML = "";
+
+      names.forEach((name, i) => {
+        const box = document.createElement("div");
+        box.className = `participant-box color-${(i % 6) + 1}`;
+        box.textContent = name;
+        box.dataset.index = i;
+        box.dataset.name = name;
+        grid.appendChild(box);
+      });
+    }
+
+    let particles = [];
+    function initParticles(){
+      const canvas = $("particlesCanvas");
+      const container = canvas.parentElement;
+      canvas.width = container.offsetWidth;
+      canvas.height = container.offsetHeight;
+      particles = [];
+      for(let i = 0; i < 30; i++){
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: (Math.random() - 0.5) * 0.5,
+          radius: 1 + Math.random() * 2,
+          hue: Math.random() * 60 + 180
+        });
+      }
+    }
+
+    function animateParticles(){
+      const canvas = $("particlesCanvas");
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
+        if(p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+        ctx.fillStyle = `hsla(${p.hue}, 80%, 60%, 0.6)`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      requestAnimationFrame(animateParticles);
+    }
+
+    function animateSelection(targetName, duration){
+      return new Promise((resolve) => {
+        const boxes = [...$("participantsGrid").children];
+        const targetBox = boxes.find(box => box.dataset.name === targetName);
+
+        if(!targetBox){
+          resolve();
+          return;
+        }
+
+        const startTime = performance.now();
+        let lastIndex = -1;
+        let currentIndex = 0;
+
+        function animate(currentTime){
+          const elapsed = currentTime - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+
+          const speed = Math.max(30, 500 * progress);
+
+          if(currentTime - animate.lastTick > speed){
+            animate.lastTick = currentTime;
+
+            if(lastIndex >= 0){
+              boxes[lastIndex].classList.remove("active");
+            }
+
+            if(progress < 0.95){
+              currentIndex = secureIndex(boxes.length);
+            } else {
+              const targetIndex = boxes.indexOf(targetBox);
+              currentIndex = targetIndex;
+            }
+
+            boxes[currentIndex].classList.add("active");
+            lastIndex = currentIndex;
+
+            beep(500 + (progress * 800), 0.03, 0.04);
+          }
+
+          if(progress < 1){
+            requestAnimationFrame(animate);
+          } else {
+            boxes.forEach(box => box.classList.remove("active"));
+            targetBox.classList.add("winner");
+            ding();
+            resolve();
+          }
+        }
+
+        animate.lastTick = startTime;
+        requestAnimationFrame(animate);
+      });
+    }
+
+    async function registerParticipant(){
+      if (state.config.closed || closedByTime()) { showMsg("regMsg","El registro esta cerrado.","error"); return; }
+      const name=$("name").value.trim();
+      if (!name) { showMsg("regMsg","Nombre obligatorio.","error"); return; }
+      const dup=validateDup({name}); if (dup){ showMsg("regMsg",dup,"error"); return; }
+      const p={name,createdAt:nowISO()}; p.id = await reqP(os(S.P,"readwrite").add(p));
+      await rememberKnownClient(name);
+      state.participants.push(p); state.participants.sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+      renderParticipants(); fillGrid(winnerPool()); showMsg("regMsg","Participante registrado.","ok");
+      $("name").value="";
+      $("name").focus();
+    }
+    async function applyNameCorrection(){
+      if (state.config.closed || closedByTime()) { showMsg("editMsg","Solo puedes corregir antes de cerrar.","error"); return; }
+      const id = Number($("editParticipant").value);
+      const newName = $("editName").value.trim();
+      if (!id) { showMsg("editMsg","Selecciona un participante.","error"); return; }
+      if (!newName) { showMsg("editMsg","Ingresa el nombre corregido.","error"); return; }
+      const dup = validateDup({name:newName, excludeId:id});
+      if (dup) { showMsg("editMsg",dup,"error"); return; }
+      const p = state.participants.find((x)=>x.id===id);
+      if (!p) { showMsg("editMsg","Participante no encontrado.","error"); return; }
+      p.name = newName;
+      await reqP(os(S.P,"readwrite").put(p));
+      await rememberKnownClient(newName);
+      state.participants.sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+      renderParticipants();
+      fillGrid(winnerPool());
+      $("editName").value = "";
+      showMsg("editMsg","Nombre corregido correctamente.","ok");
+    }
+    async function saveCfg(){
+      state.config.title = $("drawTitle").value.trim();
+      state.config.time = $("drawTime").value;
+      state.config.excludeWinners = $("excludeWinners").value === "true";
+      if (closedByTime() && !state.config.closed){ state.config.closed = true; state.config.closedAt = nowISO(); }
+      await saveConfig(); renderConfig(); renderCountdown(); fillGrid(winnerPool()); showMsg("cfgMsg","Configuracion guardada.","ok");
+    }
+    async function closeNow(){
+      if (!confirm("Seguro que deseas cerrar registro ahora?")) return;
+      state.config.closed = true; state.config.closedAt = nowISO(); await saveConfig(); renderConfig(); showMsg("regMsg","Registro cerrado.","ok");
+    }
+    async function startDraw(){
+      if (state.spinning) return;
+      const done = (state.config.sessionDrawIds || []).length;
+      if (done >= 3) { $("winnerMain").textContent = "Maximo 3 sorteos por ronda."; updateDrawControls(); return; }
+      if (!state.config.closed && !closedByTime()) { $("winnerMain").textContent = "Debes cerrar el registro."; return; }
+      const pool = winnerPool(); if (!pool.length){ $("winnerMain").textContent = "No hay participantes disponibles en el pool."; return; }
+      state.config.prize = $("prize").value.trim(); await saveConfig(); renderConfig();
+
+      [...$("participantsGrid").children].forEach(box => {
+        box.classList.remove("active", "winner");
+      });
+
+      fillGrid(pool);
+      $("winnerMain").textContent = "Sorteando...";
+      state.spinning = true;
+      $("start").disabled = true;
+      $("projectionShell").classList.add("hype");
+
+      const w = pool[secureIndex(pool.length)];
+      const ms = 4000 + secureIndex(2001);
+
+      $("start").textContent = "SORTEANDO...";
+
+      await animateSelection(w.name, ms);
+
+      const dt = new Date();
+      const winnerBox = $("winner");
+      const winnerEl = $("winnerMain");
+      winnerBox.classList.add("celebrating");
+      winnerEl.innerHTML = `
+        <div style="font-size:2.5em;margin-bottom:10px">🎉</div>
+        <div style="font-size:1.5em;color:#22d3a6;font-weight:900;text-shadow:0 0 20px rgba(34,211,166,0.6);margin-bottom:10px">${safeText(w.name)}</div>
+        <div style="font-size:0.85em;opacity:0.8">${fmtLong(dt)} - ${fmtTime(dt)}</div>
+        <div style="font-size:0.9em;margin-top:8px;color:#ffd971">Premio: ${safeText(state.config.prize || "Sin especificar")}</div>
+      `;
+      setTimeout(()=>winnerBox.classList.remove("celebrating"), 600);
+      revealWinner(w.name);
+      const draw = { drawAt: dt.toISOString(), time: fmtTime(dt), title: state.config.title || "Sorteo en Vivo", prize: state.config.prize || "", winnerId: w.id, winnerName: w.name, closedAt: state.config.closedAt || null, participantCount: state.participants.length, excludeWinners: !!state.config.excludeWinners, audit: { closedAt: state.config.closedAt || null, drawAt: dt.toISOString() } };
+      draw.id = await reqP(os(S.D,"readwrite").add(draw)); state.draws.unshift(draw); renderHistory();
+      state.config.sessionDrawIds = [...(state.config.sessionDrawIds || []), draw.id];
+      await saveConfig();
+      renderSessionWinners();
+      $("savePrepare").classList.remove("hidden"); $("newDraw").classList.remove("hidden");
+      state.spinning = false;
+      updateDrawControls();
+      setTimeout(()=>$("projectionShell").classList.remove("hype"), 1200);
+    }
+    async function savePrepare(){
+      await reqP(os(S.P,"readwrite").clear());
+      state.participants = [];
+      state.config.closed = false; state.config.closedAt = null; state.config.prize = ""; state.config.sessionDrawIds = []; $("prize").value = "";
+      await saveConfig();
+      [...$("participantsGrid").children].forEach(box => box.classList.remove("active", "winner"));
+      renderParticipants(); renderConfig(); renderCountdown(); fillGrid(winnerPool());
+      renderSessionWinners();
+      $("winnerMain").textContent = "Registro limpiado. Ajusta hora/premio para el siguiente sorteo.";
+      $("start").disabled = false;
+      $("savePrepare").classList.add("hidden"); $("newDraw").classList.add("hidden"); switchView("operator");
+    }
+    async function newDraw(){
+      const done = (state.config.sessionDrawIds || []).length;
+      if (done >= 3) { alert("Maximo 3 sorteos por ronda."); return; }
+      const mode = prompt("Escribe 'ahora' para ejecutar inmediato o HH:MM para nueva hora:", "ahora");
+      if (!mode) return;
+      const newPrize = prompt("Valor del nuevo premio:", state.config.prize || "");
+      if (newPrize === null) return;
+      state.config.prize = newPrize.trim();
+      if (mode.toLowerCase() === "ahora") { state.config.closed = true; if (!state.config.closedAt) state.config.closedAt = nowISO(); }
+      else if (/^\d{2}:\d{2}$/.test(mode)) { state.config.time = mode; state.config.closed = false; state.config.closedAt = null; }
+      else { alert("Formato invalido."); return; }
+      state.config.excludeWinners = true;
+      $("excludeWinners").value = "true";
+      [...$("participantsGrid").children].forEach(box => box.classList.remove("active", "winner"));
+      await saveConfig(); renderConfig(); renderCountdown(); fillGrid(winnerPool());
+      $("start").disabled = false; $("savePrepare").classList.add("hidden"); $("newDraw").classList.add("hidden"); $("winnerMain").textContent = "Configurado. Pulsa INICIAR SORTEO.";
+      renderSessionWinners();
+    }
+
+    // ===== CONFETTI - COPIADO EXACTO DEL CODIGO FUNCIONAL =====
+    let confettiRAF = null;
+    let confettiParts = [];
+
+    function resizeConfettiCanvas() {
+      const overlay = $("revealOverlay");
+      const confettiCanvas = $("confetti");
+      const rect = overlay.getBoundingClientRect();
+      confettiCanvas.width = Math.max(1, Math.floor(rect.width));
+      confettiCanvas.height = Math.max(1, Math.floor(rect.height));
+    }
+
+    function startConfetti() {
+      resizeConfettiCanvas();
+      const confettiCanvas = $("confetti");
+      const cctx = confettiCanvas.getContext("2d");
+
+      confettiParts = Array.from({ length: 180 }, () => ({
+        x: Math.random() * confettiCanvas.width,
+        y: -Math.random() * confettiCanvas.height,
+        vy: 2 + Math.random() * 4,
+        vx: -1 + Math.random() * 2,
+        size: 4 + Math.random() * 6,
+        rot: Math.random() * Math.PI,
+        vr: -0.08 + Math.random() * 0.16,
+        hue: Math.floor(Math.random() * 360),
+      }));
+
+      function tick() {
+        cctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+
+        for (const p of confettiParts) {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.rot += p.vr;
+
+          if (p.y > confettiCanvas.height + 20) {
+            p.y = -20;
+            p.x = Math.random() * confettiCanvas.width;
+          }
+          if (p.x < -20) p.x = confettiCanvas.width + 20;
+          if (p.x > confettiCanvas.width + 20) p.x = -20;
+
+          cctx.save();
+          cctx.translate(p.x, p.y);
+          cctx.rotate(p.rot);
+          cctx.fillStyle = `hsl(${p.hue} 85% 55%)`;
+          cctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+          cctx.restore();
+        }
+
+        confettiRAF = requestAnimationFrame(tick);
+      }
+      confettiRAF = requestAnimationFrame(tick);
+
+      window.addEventListener("resize", resizeConfettiCanvas, { passive: true });
+    }
+
+    function stopConfetti() {
+      if (confettiRAF) cancelAnimationFrame(confettiRAF);
+      confettiRAF = null;
+      confettiParts = [];
+      const confettiCanvas = $("confetti");
+      const cctx = confettiCanvas.getContext("2d");
+      cctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+      window.removeEventListener("resize", resizeConfettiCanvas);
+    }
+
+    function revealWinner(name){
+      const overlay = $("revealOverlay");
+      const card = $("revealCard");
+      card.innerHTML = `<div style="font-size:0.5em;opacity:0.9;margin-bottom:10px">🏆 GANADOR 🏆</div>${name}`;
+      overlay.classList.add("show");
+      startConfetti();
+      ding();
+      setTimeout(()=>{
+        overlay.classList.remove("show");
+        setTimeout(()=>stopConfetti(), 400);
+      }, 3500);
+    }
+    // ===== FIN CONFETTI =====
+
+    function dl(name,text,type){const b=new Blob([text],{type});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;a.click();URL.revokeObjectURL(a.href);}
+    function exportJSON(){dl(`historial_${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({exportedAt:nowISO(),config:state.config,participants:state.participants,draws:state.draws},null,2),"application/json");}
+    function exportCSV(){
+      const h=["id","fecha","hora","titulo","premio","ganador","cierre_registro","total_participantes","excluir_ganadores"];
+      const esc=(s)=>{s=String(s??"");return /[,"\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
+      const rows=state.draws.map(d=>[d.id,fmtLong(new Date(d.drawAt)),d.time,d.title,d.prize,d.winnerName,d.closedAt,d.participantCount,d.excludeWinners?"si":"no"]);
+      dl(`historial_${new Date().toISOString().slice(0,10)}.csv`,[h.join(","),...rows.map(r=>r.map(esc).join(","))].join("\n"),"text/csv");
+    }
+    async function clearAllData(){
+      const pass = prompt("Ingresa la contrasena para borrar todos los datos:");
+      if (pass !== "1980") { alert("Contrasena incorrecta."); return; }
+      if (!confirm("Se eliminaran participantes, sorteos e historial. Esta accion no se puede deshacer. Continuar?")) return;
+      await reqP(os(S.P,"readwrite").clear());
+      await reqP(os(S.D,"readwrite").clear());
+      await reqP(os(S.K,"readwrite").clear());
+      state.participants = [];
+      state.draws = [];
+      state.knownClients = [];
+      state.config = { title: "", time: "", closed: false, closedAt: null, prize: "", excludeWinners: false, sessionDrawIds: [] };
+      await saveConfig();
+      renderParticipants(); renderHistory(); renderKnownClients(); renderConfig(); renderCountdown(); fillGrid(winnerPool()); renderSessionWinners();
+      $("winnerMain").textContent = "Datos borrados. Pulsa INICIAR SORTEO";
+      alert("Datos eliminados correctamente.");
+    }
+
+    function updateDrawControls(){
+      const done = (state.config.sessionDrawIds || []).length;
+      const startBtn = $("start");
+      if (!startBtn) return;
+      if (state.spinning) return;
+      if (done >= 3){
+        startBtn.disabled = true;
+        startBtn.textContent = "MAXIMO 3 SORTEOS";
+      } else {
+        startBtn.disabled = false;
+        startBtn.textContent = "INICIAR SORTEO";
+      }
+    }
+
+    function switchView(v){ $("operatorView").classList.toggle("hidden", v!=="operator"); $("projectionView").classList.toggle("hidden", v==="operator"); }
+    async function registerSW(){ if ("serviceWorker" in navigator) { try { await navigator.serviceWorker.register("./sw.js"); } catch (_) {} } }
+
+    function bind(){
+      $("register").onclick = registerParticipant;
+      $("saveConfig").onclick = saveCfg;
+      $("closeNow").onclick = closeNow;
+      $("toProjection").onclick = async()=>{ state.config.prize = $("prize").value.trim(); await saveConfig(); renderConfig(); switchView("projection"); };
+      $("start").onclick = startDraw;
+      $("savePrepare").onclick = savePrepare;
+      $("newDraw").onclick = newDraw;
+      $("goOperator").onclick = ()=>switchView("operator");
+      $("goProjection").onclick = ()=>switchView("projection");
+      $("exportJson").onclick = exportJSON;
+      $("exportCsv").onclick = exportCSV;
+      $("clearData").onclick = clearAllData;
+      $("name").addEventListener("keydown",(e)=>{
+        if (e.key === "Enter"){
+          e.preventDefault();
+          const typed = $("name").value.trim();
+          if (!typed) return registerParticipant();
+          const exact = state.knownClients.find((c)=>norm(c.name)===norm(typed));
+          if (exact) return registerParticipant();
+          const match = state.knownClients.find((c)=>norm(c.name).startsWith(norm(typed)));
+          if (match){
+            $("name").value = match.name;
+            showMsg("regMsg",`Autocompletado: ${match.name}. Presiona ENTER de nuevo para registrar.`, "ok");
+            return;
+          }
+          registerParticipant();
+        }
+      });
+      $("applyNameFix").onclick = applyNameCorrection;
+      $("drawTitle").oninput = (e)=>{
+        state.config.title = e.target.value;
+        $("pTitle").textContent = state.config.title || "Sorteo en Vivo";
+      };
+      $("drawTime").oninput = (e)=>{
+        state.config.time = e.target.value;
+        renderCountdown();
+      };
+      $("excludeWinners").onchange = (e)=>{
+        state.config.excludeWinners = e.target.value === "true";
+        fillGrid(winnerPool());
+      };
+      $("prize").oninput = async(e)=>{
+        state.config.prize = e.target.value;
+        await saveConfig();
+        $("pPrize").textContent = `Premio: ${state.config.prize || "--"}`;
+      };
+      setInterval(async()=>{
+        let changed = false;
+        if (!state.config.closed && closedByTime()){
+          state.config.closed = true;
+          state.config.closedAt = nowISO();
+          await saveConfig();
+          changed = true;
+        }
+        if (changed) renderConfig();
+        renderCountdown();
+      },1000);
+    }
+
+    (async function init(){
+      try{
+        db = await openDB();
+        await load();
+        if (!Array.isArray(state.config.sessionDrawIds)) state.config.sessionDrawIds = [];
+        renderParticipants(); renderHistory(); renderKnownClients(); renderConfig(); renderCountdown(); fillGrid(winnerPool());
+        renderSessionWinners();
+        initParticles();
+        animateParticles();
+        bind(); await registerSW();
+      }catch(e){ alert("Error al iniciar app: " + e.message); }
+    })();
+  </script>
+</body>
+</html>
