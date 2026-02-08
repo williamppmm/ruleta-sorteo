@@ -77,6 +77,12 @@
         gap: 8px;
         flex-wrap: wrap;
         margin-bottom: 12px;
+        position: sticky;
+        top: 0;
+        z-index: 10000;
+        background: rgba(10, 10, 20, 0.95);
+        padding: 10px;
+        border-radius: 8px;
       }
 
       .btn {
@@ -129,9 +135,9 @@
       /* Botón pantalla completa */
       .fullscreen-btn {
         position: fixed;
-        top: 10px;
-        right: 10px;
-        z-index: 1000;
+        top: 60px;
+        right: 14px;
+        z-index: 10001;
         background: rgba(26, 31, 58, 0.9);
         border: 2px solid rgba(255, 215, 0, 0.4);
         border-radius: 8px;
@@ -153,7 +159,7 @@
         position: fixed;
         bottom: 10px;
         right: 10px;
-        z-index: 1000;
+        z-index: 10001;
         background: rgba(26, 31, 58, 0.8);
         border: 1px solid rgba(255, 215, 0, 0.3);
         border-radius: 6px;
@@ -161,6 +167,7 @@
         color: #FFD700;
         font-size: 0.8rem;
         opacity: 0.7;
+        display: none;
       }
 
       .grid {
@@ -169,7 +176,8 @@
       }
 
       .layout {
-        grid-template-columns: 380px 1fr;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
       }
 
       @media (max-width: 960px) {
@@ -268,8 +276,8 @@
       }
 
       .tbl {
-        max-height: 66vh;
-        overflow: auto;
+        max-height: 85vh;
+        overflow-y: auto;
         border-radius: 10px;
         border: 1px solid #0047AB;
       }
@@ -650,14 +658,208 @@
         height: 100%;
         pointer-events: none;
       }
+
+      /* ===== VISTA DE GANADORES ===== */
+      #winnersView {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        z-index: 100;
+      }
+
+      #winnersView.hidden {
+        display: none;
+      }
+
+      #winnersView #winnersConfetti {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      #winnersView .winners-container {
+        position: relative;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        width: 100%;
+        height: 100%;
+        padding: 20px;
+        overflow-y: auto;
+      }
+
+      #winnersView .winners-card {
+        background: linear-gradient(135deg, rgba(26, 31, 58, 0.95), rgba(30, 35, 71, 0.95));
+        border: 2px solid rgba(255, 215, 0, 0.5);
+        border-radius: 16px;
+        padding: 20px 30px;
+        max-width: 700px;
+        width: 90%;
+        box-shadow:
+          0 15px 50px rgba(255, 215, 0, 0.3),
+          0 0 80px rgba(255, 215, 0, 0.15),
+          inset 0 0 30px rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        text-align: center;
+        position: relative;
+      }
+
+      #winnersView .winners-title {
+        font-size: 1.8rem;
+        font-weight: 900;
+        margin-bottom: 4px;
+        color: var(--neon);
+        text-shadow:
+          0 0 30px rgba(255, 215, 0, 0.8),
+          0 0 60px rgba(255, 215, 0, 0.4);
+        animation: titleGlow 3s ease-in-out infinite;
+        letter-spacing: 2px;
+      }
+
+      @keyframes titleGlow {
+        0%, 100% {
+          text-shadow:
+            0 0 30px rgba(255, 215, 0, 0.6),
+            0 0 60px rgba(255, 215, 0, 0.3);
+        }
+        50% {
+          text-shadow:
+            0 0 50px rgba(255, 215, 0, 0.9),
+            0 0 100px rgba(255, 215, 0, 0.5);
+        }
+      }
+
+      #winnersView .winners-subtitle {
+        font-size: 1rem;
+        color: var(--txt);
+        opacity: 0.85;
+        font-weight: 600;
+      }
+
+      #winnersView .winners-date {
+        font-size: 0.85rem;
+        color: var(--muted);
+        opacity: 0.7;
+        margin-bottom: 8px;
+      }
+
+      #winnersView .winners-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      #winnersView .winner-item {
+        background: linear-gradient(135deg, rgba(14, 36, 59, 0.7), rgba(10, 20, 40, 0.7));
+        border-radius: 10px;
+        padding: 10px 20px;
+        border: 2px solid transparent;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        text-align: left;
+        opacity: 0;
+        transform: translateX(-20px);
+        animation: slideIn 0.5s forwards;
+      }
+
+      @keyframes slideIn {
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      #winnersView .winner-item:nth-child(1) {
+        border-color: rgba(255, 215, 0, 0.6);
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+        animation-delay: 0.1s;
+      }
+
+      #winnersView .winner-item:nth-child(2) {
+        border-color: rgba(192, 192, 192, 0.6);
+        box-shadow: 0 0 15px rgba(192, 192, 192, 0.15);
+        animation-delay: 0.2s;
+      }
+
+      #winnersView .winner-item:nth-child(3) {
+        border-color: rgba(205, 127, 50, 0.6);
+        box-shadow: 0 0 15px rgba(205, 127, 50, 0.15);
+        animation-delay: 0.3s;
+      }
+
+      #winnersView .winner-item:nth-child(n+4) {
+        border-color: rgba(0, 71, 171, 0.5);
+        box-shadow: 0 0 10px rgba(0, 71, 171, 0.15);
+      }
+
+      #winnersView .winner-position {
+        font-size: 1.6rem;
+        flex-shrink: 0;
+      }
+
+      #winnersView .winner-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      #winnersView .winner-name {
+        font-size: 1.15rem;
+        font-weight: 800;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+      }
+
+      #winnersView .winner-item:nth-child(1) .winner-name {
+        color: #FFD700;
+        font-size: 1.3rem;
+      }
+
+      #winnersView .winner-item:nth-child(2) .winner-name {
+        color: #C0C0C0;
+        font-size: 1.2rem;
+      }
+
+      #winnersView .winner-item:nth-child(3) .winner-name {
+        color: #CD7F32;
+        font-size: 1.15rem;
+      }
+
+      #winnersView .winner-item:nth-child(n+4) .winner-name {
+        color: #7eb8ff;
+      }
+
+      #winnersView .winner-prize {
+        font-size: 0.85rem;
+        color: #FFD700;
+        font-weight: 600;
+        background: rgba(255, 215, 0, 0.1);
+        padding: 3px 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 215, 0, 0.25);
+        flex-shrink: 0;
+      }
+
+      #winnersView .empty-message {
+        font-size: 1.1rem;
+        color: var(--txt);
+        opacity: 0.6;
+        font-style: italic;
+        padding: 30px 20px;
+      }
     </style>
   </head>
 
   <body>
     <div class="app">
       <div class="top">
-        <button class="btn" id="goOperator">Modo Operador</button>
-        <button class="btn" id="goProjection">Modo Proyeccion</button>
+        <button class="btn" id="goOperator">Registro</button>
+        <button class="btn" id="goProjection">Sorteo</button>
+        <button class="btn" id="goWinners">Ganadores</button>
         <span class="pill">Offline tras carga: SI</span>
         <span class="pill">Sorteos guardados: <b id="drawCount">0</b></span>
       </div>
@@ -674,6 +876,8 @@
               <input id="drawTitle" maxlength="100" placeholder="Ej. Sorteo de Aniversario" />
               <label>Hora del sorteo (HH:MM)</label>
               <input id="drawTime" type="time" />
+              <label>Cantidad de sorteos permitidos</label>
+              <input id="maxDraws" type="number" min="1" max="50" value="3" />
               <button class="btn" id="saveConfig">Guardar configuracion</button>
               <div id="cfgMsg" class="small"></div>
             </div>
@@ -730,7 +934,7 @@
                 <button class="btn" id="exportJson">JSON</button>
                 <button class="btn" id="exportCsv">CSV</button>
               </div>
-              <button class="btn danger" id="clearData">Borrar datos previos</button>
+              <button class="btn danger" id="clearData">Resetear sistema completo</button>
               <div id="history" class="history"></div>
             </div>
 
@@ -787,13 +991,6 @@
 
             <div id="winner" class="winner">
               <div id="winnerMain" class="winner-main">Pulsa INICIAR SORTEO para comenzar</div>
-
-              <div class="winners-list">
-                <h3>🏆 Ganadores de este sorteo</h3>
-                <ul id="sessionWinners">
-                  <li style="opacity: 0.6; font-style: italic">Aún no hay ganadores</li>
-                </ul>
-              </div>
             </div>
 
             <div style="margin-top: 20px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; opacity: 0.7">
@@ -801,6 +998,22 @@
               <span id="countStatus" class="pill" style="display: inline-block; padding: 8px 14px">
                 Participantes: 0
               </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="winnersView" class="hidden">
+        <canvas id="winnersConfetti"></canvas>
+
+        <div class="winners-container">
+          <div class="winners-card">
+            <div class="winners-title">🏆 GANADORES 🏆</div>
+            <div id="winnersSubtitle" class="winners-subtitle"></div>
+            <div id="winnersDate" class="winners-date"></div>
+
+            <div class="winners-list" id="winnersList">
+              <div class="empty-message">Esperando ganadores...</div>
             </div>
           </div>
         </div>
@@ -834,6 +1047,7 @@
           prize: "",
           excludeWinners: true,
           sessionDrawIds: [],
+          maxDraws: 3,
         },
         spinning: false,
         soundOn: true,
@@ -1008,6 +1222,7 @@
               prize: c.value.prize || "",
               excludeWinners: c.value.excludeWinners !== false,
               sessionDrawIds: Array.isArray(c.value.sessionDrawIds) ? c.value.sessionDrawIds : [],
+              maxDraws: parseInt(c.value.maxDraws) || 3,
             };
           }
 
@@ -1030,6 +1245,7 @@
             prize: "",
             excludeWinners: true,
             sessionDrawIds: [],
+            maxDraws: 3,
           };
           await saveConfig();
         }
@@ -1151,6 +1367,7 @@
       function renderConfig() {
         setIfNotEditing("drawTitle", state.config.title || "");
         setIfNotEditing("drawTime", state.config.time || "");
+        setIfNotEditing("maxDraws", state.config.maxDraws || 3);
 
         $("prize").value = state.config.prize || "";
 
@@ -1240,33 +1457,9 @@
       }
 
       function renderSessionWinners() {
-        const ul = $("sessionWinners");
-        ul.innerHTML = "";
-
-        const draws = getSessionDraws();
-
-        if (!draws.length) {
-          ul.innerHTML = '<li style="opacity:0.6;font-style:italic">Aún no hay ganadores</li>';
-          updateDrawControls();
-          return;
-        }
-
-        draws.forEach((d, i) => {
-          const li = document.createElement("li");
-          const emoji = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🏅";
-
-          li.innerHTML = `
-            <span style="font-size:1.2em">${emoji}</span>
-            <b style="color:var(--neon)">${safeText(d.winnerName)}</b>
-            <span style="opacity:0.7">→</span>
-            <b style="color:var(--warn)">${safeText(formatPrize(d.prize) || "Sin premio")}</b>
-          `;
-
-          li.style.marginBottom = "8px";
-          ul.appendChild(li);
-        });
-
         updateDrawControls();
+        // Los ganadores se muestran en Modo Ganadores
+        renderWinners();
       }
 
       function fillGrid(pool) {
@@ -1398,6 +1591,130 @@
             reject(error);
           }
         });
+      }
+
+      // ===== VISTA DE GANADORES =====
+      let winnersConfettiParts = [];
+      let winnersAnimationId = null;
+
+      function initWinnersConfetti() {
+        const canvas = $("winnersConfetti");
+        if (!canvas) return;
+
+        const ctx = canvas.getContext("2d");
+
+        // Configurar tamaño del canvas
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Si ya hay animación corriendo, no inicializar de nuevo
+        if (winnersAnimationId) return;
+
+        // Crear partículas de confetti
+        const colors = ['#FFD700', '#DC143C', '#0047AB', '#FFFFFF', '#DAA520', '#B91C1C', '#1e3a8a', '#C0C0C0'];
+        winnersConfettiParts = Array.from({ length: 200 }, () => ({
+          x: Math.random() * canvas.width,
+          y: -Math.random() * canvas.height,
+          vy: 2 + Math.random() * 4,
+          vx: -1 + Math.random() * 2,
+          size: 4 + Math.random() * 8,
+          rot: Math.random() * Math.PI * 2,
+          vr: -0.08 + Math.random() * 0.16,
+          color: colors[Math.floor(Math.random() * colors.length)],
+        }));
+
+        // Animar confetti
+        function animateWinnersConfetti() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          for (const p of winnersConfettiParts) {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.rot += p.vr;
+
+            // Reciclar partículas que salen de la pantalla
+            if (p.y > canvas.height + 20) {
+              p.y = -20;
+              p.x = Math.random() * canvas.width;
+            }
+
+            if (p.x < -20) p.x = canvas.width + 20;
+            if (p.x > canvas.width + 20) p.x = -20;
+
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rot);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+            ctx.restore();
+          }
+
+          winnersAnimationId = requestAnimationFrame(animateWinnersConfetti);
+        }
+
+        animateWinnersConfetti();
+
+        // Ajustar canvas al redimensionar ventana
+        window.addEventListener("resize", () => {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        });
+      }
+
+      function renderWinners() {
+        const list = $("winnersList");
+        if (!list) return;
+
+        const draws = getSessionDraws();
+
+        // Actualizar subtítulo y fecha
+        const subtitleEl = $("winnersSubtitle");
+        const dateEl = $("winnersDate");
+
+        if (subtitleEl) {
+          subtitleEl.textContent = state.config.title || "Sorteo en Vivo";
+        }
+
+        if (dateEl && draws.length > 0) {
+          const lastDraw = draws[draws.length - 1];
+          const dt = new Date(lastDraw.drawAt);
+          dateEl.textContent = `${fmtLong(dt)} - ${fmtTime(dt)}`;
+        }
+
+        if (!draws || draws.length === 0) {
+          list.innerHTML = '<div class="empty-message">Esperando ganadores...</div>';
+          return;
+        }
+
+        const emojis = ['🥇', '🥈', '🥉'];
+
+        list.innerHTML = '';
+
+        draws.forEach((draw, index) => {
+          const item = document.createElement("div");
+          item.className = "winner-item";
+          item.style.animationDelay = `${0.1 * (index + 1)}s`;
+
+          const emoji = emojis[index] || '🏅';
+          const winnerName = draw.winnerName || 'Nombre desconocido';
+          const formattedPrize = formatPrize(draw.prize) || 'No especificado';
+
+          item.innerHTML = `
+            <span class="winner-position">${emoji}</span>
+            <div class="winner-info">
+              <div class="winner-name">${escapeHtml(winnerName)}</div>
+            </div>
+            <div class="winner-prize">${escapeHtml(formattedPrize)}</div>
+          `;
+
+          list.appendChild(item);
+        });
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
       }
 
       // ===== REGISTRO =====
@@ -1542,6 +1859,7 @@
       async function saveCfg() {
         state.config.title = $("drawTitle").value.trim();
         state.config.time = $("drawTime").value;
+        state.config.maxDraws = Math.max(1, parseInt($("maxDraws").value) || 3);
 
         if (closedByTime() && !state.config.closed) {
           state.config.closed = true;
@@ -1574,7 +1892,8 @@
         if (state.spinning) return;
 
         const done = (state.config.sessionDrawIds || []).length;
-        if (done >= 3) {
+        const maxDraws = state.config.maxDraws || 3;
+        if (done >= maxDraws) {
           updateDrawControls();
           return;
         }
@@ -1630,13 +1949,9 @@
         winnerBox.classList.add("celebrating");
 
         winnerEl.innerHTML = `
-          <div style="font-size:1.2em;color:var(--neon);font-weight:900;text-shadow:0 0 30px rgba(255,215,0,0.8);margin-bottom:8px;line-height:1.2">
-            ${safeText(w.name)}
+          <div style="font-size:1.2em;color:var(--neon);font-weight:900;text-shadow:0 0 30px rgba(255,215,0,0.8);line-height:1.2">
+            🏆 ${safeText(w.name)} 🏆
           </div>
-          <div style="font-size:0.75em;opacity:0.8;margin-bottom:6px">${fmtLong(dt)} - ${fmtTime(dt)}</div>
-          <div style="font-size:0.9em;margin-top:6px;color:var(--warn);font-weight:800;background:rgba(255,215,0,0.15);padding:6px 10px;border-radius:6px;border:2px solid rgba(255,215,0,0.3)">Premio: ${safeText(
-            formatPrize(state.config.prize) || "Sin especificar"
-          )}</div>
         `;
 
         setTimeout(() => winnerBox.classList.remove("celebrating"), 600);
@@ -1841,6 +2156,7 @@
       }
 
       function revealWinner(name, prize) {
+        // Primero mostrar el overlay temporal con el ganador en Modo Proyección
         const overlay = $("revealOverlay");
         const card = $("revealCard");
 
@@ -1858,9 +2174,14 @@
         startConfetti();
         ding();
 
+        // Después de 3.5 segundos, cambiar a Modo Ganadores
         setTimeout(() => {
           overlay.classList.remove("show");
-          setTimeout(() => stopConfetti(), 400);
+          setTimeout(() => {
+            stopConfetti();
+            // Cambiar a la vista de ganadores automáticamente
+            switchView("winners");
+          }, 400);
         }, 3500);
       }
 
@@ -1957,90 +2278,45 @@
         alert("Pago registrado exitosamente.");
       }
 
-      // ===== BORRAR TODO =====
+      // ===== BORRAR TODO (RESET COMPLETO) =====
       async function clearAllData() {
-        const pass = prompt("Ingresa la contrasena para borrar todos los datos:");
+        const pass = prompt("Ingresa la contrasena para resetear el sistema:");
 
         if (pass !== "1980") {
           alert("Contrasena incorrecta.");
           return;
         }
 
-        if (!confirm("Se eliminaran participantes, sorteos e historial. Esta accion no se puede deshacer. Continuar?"))
+        if (!confirm("Se eliminara TODA la base de datos y se recreara desde cero.\nParticipantes, sorteos, historial y configuracion se perderan.\n\nEsta accion no se puede deshacer. Continuar?"))
           return;
 
-        try {
-          // Detener confetti si está activo
-          stopConfetti();
-
-          // Limpiar IndexedDB
-          await reqP(os(S.P, "readwrite").clear());
-          await reqP(os(S.D, "readwrite").clear());
-          await reqP(os(S.K, "readwrite").clear());
-
-          // Resetear estado completo
-          state.participants = [];
-          state.draws = [];
-          state.knownClients = [];
-          state.spinning = false;
-          state.soundOn = true;
-
-          state.config = {
-            title: "",
-            time: "",
-            closed: false,
-            closedAt: null,
-            prize: "",
-            excludeWinners: true,
-            sessionDrawIds: [],
-          };
-
-          await saveConfig();
-
-          // Limpiar clases de animación
-          $("projectionShell").classList.remove("hype");
-          [...$("participantsGrid").children].forEach((box) => {
-            box.classList.remove("active", "winner");
-          });
-
-          // Re-renderizar todo
-          renderParticipants();
-          renderHistory();
-          renderKnownClients();
-          renderConfig();
-          renderCountdown();
-
-          fillGrid(winnerPool());
-          renderSessionWinners();
-
-          // Resetear botones y mensajes
-          $("start").disabled = false;
-          $("start").textContent = "INICIAR SORTEO";
-          $("savePrepare").classList.add("hidden");
-          $("winnerMain").textContent = "Datos borrados. Pulsa INICIAR SORTEO";
-
-          alert("Datos eliminados correctamente.");
-        } catch (error) {
-          console.error("Error limpiando datos:", error);
-          alert("Error al limpiar los datos: " + error.message);
-        }
+        await emergencyReset();
       }
 
       // ===== CONTROLES =====
       function updateDrawControls() {
         const done = (state.config.sessionDrawIds || []).length;
+        const maxDraws = state.config.maxDraws || 3;
         const startBtn = $("start");
 
         if (!startBtn) return;
         if (state.spinning) return;
 
-        startBtn.disabled = done >= 3;
-        startBtn.textContent = "INICIAR SORTEO";
+        startBtn.disabled = done >= maxDraws;
+        startBtn.textContent = done >= maxDraws ? `SORTEOS COMPLETADOS (${done}/${maxDraws})` : "INICIAR SORTEO";
       }
 
       function switchView(v) {
         $("operatorView").classList.toggle("hidden", v !== "operator");
-        $("projectionView").classList.toggle("hidden", v === "operator");
+        $("projectionView").classList.toggle("hidden", v !== "projection");
+        $("winnersView").classList.toggle("hidden", v !== "winners");
+
+        // Si cambiamos a la vista de ganadores, iniciar/continuar confetti y renderizar
+        if (v === "winners") {
+          initWinnersConfetti();
+          // Pequeño delay para asegurar que los datos estén guardados
+          setTimeout(() => renderWinners(), 100);
+        }
       }
 
       async function registerSW() {
@@ -2085,6 +2361,7 @@
             prize: "",
             excludeWinners: true,
             sessionDrawIds: [],
+            maxDraws: 3,
           };
 
           console.log("✅ Estado reseteado");
@@ -2180,11 +2457,16 @@
       // Listener para cambio de estado de pantalla completa
       document.addEventListener("fullscreenchange", () => {
         const btn = $("fullscreenBtn");
+        const hint = document.querySelector(".fullscreen-hint");
+        const isFullscreen = !!document.fullscreenElement;
         if (btn) {
-          btn.textContent = document.fullscreenElement ? "⛶" : "⛶";
-          btn.title = document.fullscreenElement
+          btn.textContent = isFullscreen ? "⛶" : "⛶";
+          btn.title = isFullscreen
             ? "Salir de pantalla completa (ESC)"
             : "Pantalla completa (F11 o clic)";
+        }
+        if (hint) {
+          hint.style.display = isFullscreen ? "block" : "none";
         }
       });
 
@@ -2205,6 +2487,7 @@
 
         $("goOperator").onclick = () => switchView("operator");
         $("goProjection").onclick = () => switchView("projection");
+        $("goWinners").onclick = () => switchView("winners");
 
         // Botón de pantalla completa
         $("fullscreenBtn").onclick = toggleFullscreen;
