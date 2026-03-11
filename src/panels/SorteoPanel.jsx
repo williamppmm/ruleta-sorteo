@@ -8,6 +8,7 @@ import { beep, ding } from '../utils/audio.js'
 
 const DURACION_ANIMACION = 7200
 const PAUSA_GANADOR_MS = 900
+const MIN_PARTICIPANTES_POR_RONDA = 10
 const COLORES = ['color-1', 'color-2', 'color-3', 'color-4', 'color-5', 'color-6']
 
 function secureIdx(max) {
@@ -65,6 +66,12 @@ export default function SorteoPanel({ onGanador }) {
     p => !estaVetadoIntradia(p, derived.ganadoresDelDia)
   )
   const participantesRender = fase === 'espera' ? visibles : participantesSnapshot
+  const rondasCompletadas = cfg.idsRondasDelDia?.length ?? 0
+  const todasRondasCompletadas = rondasCompletadas >= cfg.totalRondas
+  const esPrimerSorteoDeLaSesion = rondasCompletadas === 0
+  const faltantesMinimos = Math.max(MIN_PARTICIPANTES_POR_RONDA - visibles.length, 0)
+  const cumpleMinimoParticipantes = !esPrimerSorteoDeLaSesion
+    || visibles.length >= MIN_PARTICIPANTES_POR_RONDA
 
   const logDebug = useCallback((mensaje, data = null) => {
     const stamp = new Date().toLocaleTimeString('es-CO', { hour12: false })
@@ -156,12 +163,16 @@ export default function SorteoPanel({ onGanador }) {
     })
   }, [logDebug])
 
-  const rondasCompletadas = cfg.idsRondasDelDia?.length ?? 0
-  const todasRondasCompletadas = rondasCompletadas >= cfg.totalRondas
-
   const iniciar = useCallback(async () => {
     if (fase !== 'espera' || visibles.length === 0) return
     if (todasRondasCompletadas) return
+    if (!cumpleMinimoParticipantes) {
+      logDebug('Intento bloqueado por minimo de participantes.', {
+        visibles: visibles.length,
+        minimo: MIN_PARTICIPANTES_POR_RONDA,
+      })
+      return
+    }
 
     let ganador
     try {
@@ -214,6 +225,7 @@ export default function SorteoPanel({ onGanador }) {
     onGanador,
     premio,
     state.clientes,
+    cumpleMinimoParticipantes,
     todasRondasCompletadas,
     visibles,
   ])
@@ -302,7 +314,7 @@ export default function SorteoPanel({ onGanador }) {
           <div className="flex flex-col items-center gap-3">
             <button
               onClick={iniciar}
-              disabled={participantesRender.length === 0}
+              disabled={participantesRender.length === 0 || !cumpleMinimoParticipantes}
               className="font-black text-black bg-yellow-500 hover:bg-yellow-400
                 disabled:opacity-30 disabled:cursor-not-allowed
                 px-14 py-5 rounded-2xl transition-all duration-200 active:scale-95"
@@ -317,7 +329,9 @@ export default function SorteoPanel({ onGanador }) {
               className="text-gray-400"
               style={{ fontSize: 'clamp(.95rem, 1.2vw, 1.05rem)' }}
             >
-              Presiona el boton para lanzar la animacion y revelar el ganador.
+              {!esPrimerSorteoDeLaSesion || cumpleMinimoParticipantes
+                ? 'Presiona el boton para lanzar la animacion y revelar el ganador.'
+                : `Se requieren minimo ${MIN_PARTICIPANTES_POR_RONDA} participantes para iniciar. Faltan ${faltantesMinimos}.`}
             </p>
           </div>
         )}

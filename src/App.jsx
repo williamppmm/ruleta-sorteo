@@ -54,7 +54,7 @@ export default function App() {
   if (panel === PANELES.GANADORES) {
     return (
       <GanadoresPanel
-        ultimoSorteo={ultimoSorteo}
+        ultimoSorteo={ultimoSorteo || state.sorteos[0] || null}
         onVolverAdmin={() => setPanel(PANELES.ADMIN)}
         onSiguienteRonda={() => setPanel(PANELES.SORTEO)}
       />
@@ -77,7 +77,10 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <TopNav panel={panel} setPanel={setPanel} />
-      <AdminPanel onIrAlSorteo={() => setPanel(PANELES.SORTEO)} />
+      <AdminPanel
+        onIrAlSorteo={() => setPanel(PANELES.SORTEO)}
+        onVerGanadores={() => setPanel(PANELES.GANADORES)}
+      />
     </div>
   )
 }

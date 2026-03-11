@@ -9,7 +9,7 @@
 
 import { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import {
-  STORES, cargarEstadoInicial, saveConfig,
+  STORES, CONFIG_DEFAULT, cargarEstadoInicial, saveConfig,
   put, add, remove, clear,
 } from './db.js';
 import { normalizar } from '../utils/normalizar.js';
@@ -116,6 +116,15 @@ function reducer(state, action) {
             ? { ...s, pagado: true, fechaPago: action.payload.fechaPago }
             : s
         ),
+      };
+
+    case 'RESET_TODO':
+      return {
+        ...state,
+        clientes: [],
+        participantes: [],
+        sorteos: [],
+        config: { ...CONFIG_DEFAULT },
       };
 
     default:
@@ -242,6 +251,17 @@ export function StoreProvider({ children }) {
     dispatch({ type: 'SET_CONFIG', payload: cambios });
   }, [state.config]);
 
+  /** Borra toda la informacion persistida de la app y reinicia la configuracion. */
+  const borrarTodo = useCallback(async () => {
+    await Promise.all([
+      clear(STORES.CLIENTES),
+      clear(STORES.PARTICIPANTES),
+      clear(STORES.SORTEOS),
+    ]);
+    await saveConfig({ ...CONFIG_DEFAULT });
+    dispatch({ type: 'RESET_TODO' });
+  }, []);
+
   // ── CRUD Clientes ────────────────────────────
 
   /** Crea o actualiza un cliente en la base permanente. */
@@ -348,6 +368,7 @@ export function StoreProvider({ children }) {
         cerrarRegistro,
         siguienteRonda,
         nuevaSesion,
+        borrarTodo,
         upsertCliente,
         deleteCliente,
         registrarGanador,

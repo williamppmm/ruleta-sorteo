@@ -5,6 +5,7 @@ import { estaVetadoInterdia } from '../engine/vetos.js'
 import { normalizar } from '../utils/normalizar.js'
 
 const TABS = { CLIENTES: 'clientes', HISTORIAL: 'historial', IMPORTAR: 'importar' }
+const PASSWORD_SUPERADMIN = '1980'
 
 // ─────────────────────────────────────────────
 // Parser del archivo .txt
@@ -53,6 +54,9 @@ export default function SuperAdminPanel() {
   const [editandoNombre, setEditandoNombre] = useState('')
   const [confirmandoKey, setConfirmandoKey] = useState(null)
   const [clienteHistorial, setClienteHistorial] = useState(null)
+  const [confirmandoReset, setConfirmandoReset] = useState(false)
+  const [passwordReset, setPasswordReset] = useState('')
+  const [errorReset, setErrorReset] = useState(false)
 
   // Estado de importación
   const [preview, setPreview]         = useState(null)   // { clientes, errores, nombreArchivo }
@@ -120,6 +124,25 @@ export default function SuperAdminPanel() {
     setConfirmandoKey(null)
   }
 
+  async function confirmarBorradoTotal() {
+    if (passwordReset !== PASSWORD_SUPERADMIN) {
+      setErrorReset(true)
+      return
+    }
+
+    await actions.borrarTodo()
+    setConfirmandoReset(false)
+    setPasswordReset('')
+    setErrorReset(false)
+    setClienteHistorial(null)
+    setTab(TABS.CLIENTES)
+    setBusqueda('')
+    setNuevoNombre('')
+    setErrorNuevo('')
+    setPreview(null)
+    setResultadoImport(null)
+  }
+
   // ── Historial de un cliente ───────────────────
   function verHistorial(cliente) {
     setClienteHistorial(cliente)
@@ -166,6 +189,30 @@ export default function SuperAdminPanel() {
         <span className="text-gray-500 text-sm">
           {state.clientes.length} cliente{state.clientes.length !== 1 ? 's' : ''} en base
         </span>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-red-900 bg-red-950/30 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-wide text-red-300">
+              Zona de mantenimiento
+            </p>
+            <p className="text-sm text-red-100/80">
+              Borra clientes, participantes, sorteos e informacion de la sesion actual.
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              setConfirmandoReset(true)
+              setPasswordReset('')
+              setErrorReset(false)
+            }}
+            className="rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-600"
+          >
+            Borrar todos los registros
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -437,6 +484,58 @@ export default function SuperAdminPanel() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {confirmandoReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-red-900 bg-gray-950 p-6 shadow-2xl">
+            <h3 className="mb-2 text-lg font-bold text-white">Borrar todos los registros</h3>
+            <p className="mb-4 text-sm text-gray-400">
+              Esta accion eliminara clientes, participantes, historial de sorteos y reiniciara la configuracion.
+              Ingresa la contrasena para continuar.
+            </p>
+
+            <input
+              autoFocus
+              type="password"
+              value={passwordReset}
+              onChange={e => {
+                setPasswordReset(e.target.value)
+                setErrorReset(false)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') confirmarBorradoTotal()
+              }}
+              placeholder="Contrasena"
+              className={`w-full rounded-xl border bg-gray-900 px-4 py-3 text-center tracking-widest text-white outline-none transition ${
+                errorReset ? 'border-red-500' : 'border-gray-700 focus:border-red-400'
+              }`}
+            />
+
+            {errorReset && (
+              <p className="mt-2 text-center text-xs text-red-400">Contrasena incorrecta</p>
+            )}
+
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={confirmarBorradoTotal}
+                className="flex-1 rounded-xl bg-red-700 py-3 font-bold text-white transition hover:bg-red-600"
+              >
+                Borrar todo
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmandoReset(false)
+                  setPasswordReset('')
+                  setErrorReset(false)
+                }}
+                className="flex-1 rounded-xl bg-gray-800 py-3 font-semibold text-white transition hover:bg-gray-700"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

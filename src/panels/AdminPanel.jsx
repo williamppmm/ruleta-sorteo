@@ -3,26 +3,50 @@ import { useStore } from '../store/useStore.jsx'
 import { normalizar } from '../utils/normalizar.js'
 
 const PASSWORD_ADMIN = '1980'
+const MIN_PARTICIPANTES_POR_RONDA = 10
 
-export default function AdminPanel({ onIrAlSorteo }) {
+export default function AdminPanel({ onIrAlSorteo, onVerGanadores }) {
   const { state, actions, derived } = useStore()
   const [tab, setTab] = useState('config')
+  const hayGanadoresSesion = (state.config.idsRondasDelDia?.length ?? 0) > 0
+  const esPrimerSorteoDeLaSesion = (state.config.idsRondasDelDia?.length ?? 0) === 0
+  const faltantesMinimos = Math.max(MIN_PARTICIPANTES_POR_RONDA - state.participantes.length, 0)
+  const puedeIrAlSorteo = state.config.registroCerrado
+    && !derived.sorteoTerminado
+    && (!esPrimerSorteoDeLaSesion || state.participantes.length >= MIN_PARTICIPANTES_POR_RONDA)
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-white">Panel Admin</h1>
+        {hayGanadoresSesion && (
+          <button
+            onClick={onVerGanadores}
+            className="bg-white/10 hover:bg-white/15 text-white font-semibold
+              border border-white/15 px-5 py-3 rounded-xl transition text-sm sm:text-base"
+          >
+            Ver ganadores
+          </button>
+        )}
         {state.config.registroCerrado && !derived.sorteoTerminado && (
           <button
             onClick={onIrAlSorteo}
+            disabled={!puedeIrAlSorteo}
             className="bg-yellow-500 hover:bg-yellow-400 text-black font-black
               px-6 py-3 rounded-xl transition text-base sm:text-lg shadow-lg
-              shadow-yellow-900/50 active:scale-95"
+              shadow-yellow-900/50 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Ir al Sorteo →
           </button>
         )}
       </div>
+
+      {state.config.registroCerrado && !derived.sorteoTerminado && esPrimerSorteoDeLaSesion && !puedeIrAlSorteo && (
+        <div className="mb-6 rounded-xl border border-orange-700/70 bg-orange-950/30 px-4 py-3 text-sm text-orange-200">
+          Se requieren minimo {MIN_PARTICIPANTES_POR_RONDA} participantes para iniciar una ronda.
+          Actualmente hay {state.participantes.length} y faltan {faltantesMinimos}.
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-gray-700 pb-2 flex-wrap">
