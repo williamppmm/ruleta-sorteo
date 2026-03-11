@@ -799,8 +799,19 @@
       }
 
       #winnersView .winner-position {
-        font-size: 1.6rem;
+        width: 2.1rem;
+        height: 2.1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         flex-shrink: 0;
+        filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.25));
+      }
+
+      #winnersView .winner-position svg {
+        width: 100%;
+        height: 100%;
+        display: block;
       }
 
       #winnersView .winner-info {
@@ -851,6 +862,91 @@
         font-style: italic;
         padding: 30px 20px;
       }
+
+      /* ===== PANEL ADMIN ===== */
+      #adminView {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 14px;
+      }
+
+      #adminView .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      #adminView .admin-header h1 {
+        font-size: 1.4rem;
+        color: var(--neon);
+      }
+
+      #adminView .admin-add {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+
+      #adminView .admin-add input {
+        flex: 1;
+      }
+
+      #adminView .admin-tbl {
+        max-height: 75vh;
+        overflow-y: auto;
+        border-radius: 10px;
+        border: 1px solid #0047AB;
+      }
+
+      #adminView .admin-tbl table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      #adminView .admin-tbl th,
+      #adminView .admin-tbl td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #1e3a8a;
+        text-align: left;
+      }
+
+      #adminView .admin-tbl th {
+        position: sticky;
+        top: 0;
+        background: #0a0a14;
+        z-index: 2;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .stars-control {
+        display: inline-flex;
+        gap: 2px;
+        cursor: pointer;
+      }
+
+      .stars-control .star {
+        font-size: 1.4rem;
+        transition: all 0.15s;
+        color: #444;
+        user-select: none;
+      }
+
+      .stars-control .star.active {
+        color: #FFD700;
+        text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+      }
+
+      .stars-control .star:hover {
+        transform: scale(1.2);
+      }
+
+      .admin-count {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
     </style>
   </head>
 
@@ -879,6 +975,7 @@
               <label>Cantidad de sorteos permitidos</label>
               <input id="maxDraws" type="number" min="1" max="50" value="3" />
               <button class="btn" id="saveConfig">Guardar configuracion</button>
+              <button class="btn" id="goAdmin" style="background:#4a1a6b">Modo Admin</button>
               <div id="cfgMsg" class="small"></div>
             </div>
 
@@ -929,11 +1026,7 @@
             </div>
 
             <div class="stack">
-              <h2>Historial / Exportar</h2>
-              <div class="row">
-                <button class="btn" id="exportJson">JSON</button>
-                <button class="btn" id="exportCsv">CSV</button>
-              </div>
+              <button class="btn warn" id="newRound">🔄 Iniciar Nueva Ronda</button>
               <button class="btn danger" id="clearData">Resetear sistema completo</button>
               <div id="history" class="history"></div>
             </div>
@@ -994,7 +1087,6 @@
             </div>
 
             <div style="margin-top: 20px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; opacity: 0.7">
-              <button class="btn hidden" id="savePrepare">Finalizar sorteo</button>
               <span id="countStatus" class="pill" style="display: inline-block; padding: 8px 14px">
                 Participantes: 0
               </span>
@@ -1015,6 +1107,37 @@
             <div class="winners-list" id="winnersList">
               <div class="empty-message">Esperando ganadores...</div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="adminView" class="hidden">
+        <div class="card" style="max-width:800px;margin:0 auto">
+          <div class="admin-header">
+            <h1>Panel Administrativo</h1>
+            <button class="btn" id="adminBack">Volver a Operador</button>
+          </div>
+
+          <div class="admin-add">
+            <input id="adminName" maxlength="120" placeholder="Nombre del cliente" />
+            <button class="btn primary" id="adminAdd">Agregar</button>
+          </div>
+
+          <div class="admin-count" id="adminCount">Total clientes: 0</div>
+
+          <div class="admin-tbl">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Cliente</th>
+                  <th>Prioridad</th>
+                  <th>Cooldown</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="adminBody"></tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -1209,7 +1332,10 @@
         try {
           state.participants = (await reqP(os(S.P).getAll())).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
           state.draws = (await reqP(os(S.D).getAll())).sort((a, b) => new Date(b.drawAt) - new Date(a.drawAt));
-          state.knownClients = (await reqP(os(S.K).getAll())).sort((a, b) => a.name.localeCompare(b.name));
+          state.knownClients = (await reqP(os(S.K).getAll())).map(c => {
+            if (c.stars === undefined) c.stars = 1;
+            return c;
+          }).sort((a, b) => a.name.localeCompare(b.name));
 
           const c = await reqP(os(S.C).get("app"));
           if (c && c.value) {
@@ -1432,21 +1558,142 @@
 
         const key = norm(clean);
 
-        await reqP(os(S.K, "readwrite").put({ key, name: clean }));
+        // Preservar estrellas existentes o asignar 1 por defecto
+        const existing = state.knownClients.find((c) => c.key === key);
+        const stars = existing ? existing.stars : 1;
+
+        await reqP(os(S.K, "readwrite").put({ key, name: clean, stars }));
 
         const i = state.knownClients.findIndex((c) => c.key === key);
-        if (i >= 0) state.knownClients[i].name = clean;
-        else state.knownClients.push({ key, name: clean });
+        if (i >= 0) { state.knownClients[i].name = clean; state.knownClients[i].stars = stars; }
+        else state.knownClients.push({ key, name: clean, stars });
 
         state.knownClients.sort((a, b) => a.name.localeCompare(b.name));
         renderKnownClients();
       }
 
-      function winnerPool() {
-        if (!state.config.excludeWinners) return state.participants;
+      function getParticipantStars(name) {
+        const key = norm(name);
+        const client = state.knownClients.find(c => c.key === key);
+        return client ? (client.stars || 0) : 1;
+      }
 
-        const winners = new Set(state.draws.map((d) => d.winnerId));
-        return state.participants.filter((p) => !winners.has(p.id));
+      // Cooldown: 2 victorias consecutivas → excluido por 3 sorteos
+      const COOLDOWN_CONSECUTIVE_WINS = 2;
+      const COOLDOWN_DURATION = 3;
+
+      function isInCooldown(participantName) {
+        const normalizedName = norm(participantName);
+
+        // Sorteos ordenados cronologicamente (mas reciente primero)
+        const sortedDraws = [...state.draws].sort((a, b) =>
+          new Date(b.drawAt) - new Date(a.drawAt)
+        );
+
+        if (sortedDraws.length < COOLDOWN_CONSECUTIVE_WINS) return false;
+
+        // Buscar las ultimas 2 victorias de este participante
+        const wins = [];
+        for (let i = 0; i < sortedDraws.length && wins.length < COOLDOWN_CONSECUTIVE_WINS; i++) {
+          if (norm(sortedDraws[i].winnerName) === normalizedName) {
+            wins.push({ draw: sortedDraws[i], position: i });
+          }
+        }
+
+        if (wins.length < COOLDOWN_CONSECUTIVE_WINS) return false;
+
+        // Verificar si las 2 victorias son consecutivas
+        const [lastWin, secondLastWin] = wins;
+        const areConsecutive = (secondLastWin.position - lastWin.position) === 1;
+
+        if (!areConsecutive) return false;
+
+        // Contar sorteos desde la ultima victoria
+        const drawsSinceLastWin = lastWin.position;
+
+        return drawsSinceLastWin < COOLDOWN_DURATION;
+      }
+
+      function winnerPool() {
+        let pool = state.participants;
+
+        // 1. Exclusion de ganadores previos (si esta habilitado)
+        if (state.config.excludeWinners) {
+          const winners = new Set(state.draws.map((d) => d.winnerId));
+          pool = pool.filter((p) => !winners.has(p.id));
+        }
+
+        // 2. Exclusion por cooldown (2 victorias consecutivas)
+        const poolNoCooldown = pool.filter(p => !isInCooldown(p.name));
+        if (poolNoCooldown.length > 0) {
+          pool = poolNoCooldown;
+        }
+
+        // 3. Excluir 0★ solo si hay participantes con estrellas > 0
+        const poolWithStars = pool.filter(p => getParticipantStars(p.name) > 0);
+
+        return poolWithStars.length > 0 ? poolWithStars : pool;
+      }
+
+      function weightedSelect(pool) {
+        if (!pool.length) return null;
+
+        // Asignar estrellas a cada participante
+        const withStars = pool.map(p => ({
+          ...p,
+          stars: getParticipantStars(p.name)
+        }));
+
+        // Detectar si todos tienen 0 estrellas (caso fallback)
+        const maxStars = Math.max(...withStars.map(p => p.stars));
+
+        if (maxStars === 0) {
+          console.warn('Todos los participantes tienen 0 estrellas. Seleccion uniforme.');
+          return pool[secureIndex(pool.length)];
+        }
+
+        // Agrupar por nivel de estrellas (1-3)
+        const groups = { 3: [], 2: [], 1: [] };
+        for (const p of withStars) {
+          const s = Math.min(3, Math.max(1, p.stars));
+          groups[s].push(p);
+        }
+
+        // Pesos base: 3★ = 40%, 2★ = 35%, 1★ = 25%
+        const weights = { 3: 40, 2: 35, 1: 25 };
+
+        // Solo considerar grupos activos y redistribuir pesos
+        const activeGroups = [];
+        let totalWeight = 0;
+
+        for (const s of [3, 2, 1]) {
+          if (groups[s].length > 0) {
+            activeGroups.push({ stars: s, weight: weights[s], members: groups[s] });
+            totalWeight += weights[s];
+          }
+        }
+
+        // Fallback por si acaso (no deberia llegar aqui)
+        if (!activeGroups.length) {
+          console.warn('No hay grupos activos. Seleccion fallback.');
+          return pool[secureIndex(pool.length)];
+        }
+
+        // Seleccionar grupo segun pesos redistribuidos
+        const roll = secureIndex(totalWeight);
+        let cumulative = 0;
+        let selectedGroup = activeGroups[0];
+
+        for (const g of activeGroups) {
+          cumulative += g.weight;
+          if (roll < cumulative) {
+            selectedGroup = g;
+            break;
+          }
+        }
+
+        // Seleccionar participante aleatorio dentro del grupo
+        return selectedGroup.members[secureIndex(selectedGroup.members.length)];
       }
 
       function getSessionDraws() {
@@ -1463,17 +1710,27 @@
       }
 
       function fillGrid(pool) {
-        const names = pool.length ? pool.map((p) => p.name) : ["Sin participantes"];
         const grid = $("participantsGrid");
-
         grid.innerHTML = "";
 
-        names.forEach((name, i) => {
+        if (!state.participants.length) {
+          const box = document.createElement("div");
+          box.className = "participant-box color-1";
+          box.textContent = "Sin participantes";
+          box.dataset.index = "0";
+          box.dataset.name = "Sin participantes";
+          grid.appendChild(box);
+          return;
+        }
+
+        // Todos los participantes se ven iguales en proyeccion
+        // El cooldown se aplica internamente en winnerPool(), no en UI
+        state.participants.forEach((p, i) => {
           const box = document.createElement("div");
           box.className = `participant-box color-${(i % 6) + 1}`;
-          box.textContent = name;
+          box.textContent = p.name;
           box.dataset.index = String(i);
-          box.dataset.name = name;
+          box.dataset.name = p.name;
           grid.appendChild(box);
         });
       }
@@ -1686,8 +1943,6 @@
           return;
         }
 
-        const emojis = ['🥇', '🥈', '🥉'];
-
         list.innerHTML = '';
 
         draws.forEach((draw, index) => {
@@ -1695,12 +1950,12 @@
           item.className = "winner-item";
           item.style.animationDelay = `${0.1 * (index + 1)}s`;
 
-          const emoji = emojis[index] || '🏅';
+          const badgeSvg = getWinnerBadgeSvg(index);
           const winnerName = draw.winnerName || 'Nombre desconocido';
           const formattedPrize = formatPrize(draw.prize) || 'No especificado';
 
           item.innerHTML = `
-            <span class="winner-position">${emoji}</span>
+            <span class="winner-position" aria-hidden="true">${badgeSvg}</span>
             <div class="winner-info">
               <div class="winner-name">${escapeHtml(winnerName)}</div>
             </div>
@@ -1711,10 +1966,176 @@
         });
       }
 
+      function getWinnerBadgeSvg(index) {
+        const uid = `winnerBadge${index}`;
+
+        if (index === 0) {
+          return `<svg viewBox="0 0 64 64" role="img" aria-label="Primer lugar">
+             <defs>
+               <linearGradient id="${uid}Gold" x1="0" x2="1">
+                 <stop offset="0%" stop-color="#ffd95a"/>
+                 <stop offset="100%" stop-color="#ffb703"/>
+               </linearGradient>
+             </defs>
+             <path d="M16 4h10l6 18H22z" fill="#2f9cff"/>
+             <path d="M38 4h10l-6 18H32z" fill="#e83f6f"/>
+             <circle cx="32" cy="36" r="19" fill="url(#${uid}Gold)" stroke="#ffe79a" stroke-width="2"/>
+             <circle cx="32" cy="36" r="13" fill="none" stroke="#fff0b3" stroke-width="2" opacity=".7"/>
+             <path d="M32 25l3.2 6.5 7.1 1-5.1 5 1.2 7-6.4-3.4-6.4 3.4 1.2-7-5.1-5 7.1-1z" fill="#fff4c2"/>
+           </svg>`;
+        }
+
+        if (index === 1) {
+          return `<svg viewBox="0 0 64 64" role="img" aria-label="Segundo lugar">
+             <defs>
+               <linearGradient id="${uid}Silver" x1="0" x2="1">
+                 <stop offset="0%" stop-color="#f4f8ff"/>
+                 <stop offset="100%" stop-color="#aeb8c6"/>
+               </linearGradient>
+             </defs>
+             <path d="M16 4h10l6 18H22z" fill="#34b3ff"/>
+             <path d="M38 4h10l-6 18H32z" fill="#7a57d1"/>
+             <circle cx="32" cy="36" r="19" fill="url(#${uid}Silver)" stroke="#dfe6f0" stroke-width="2"/>
+             <circle cx="32" cy="36" r="13" fill="none" stroke="#ffffff" stroke-width="2" opacity=".65"/>
+             <text x="32" y="41" text-anchor="middle" font-size="18" font-weight="800" fill="#4b5563">2</text>
+           </svg>`;
+        }
+
+        if (index === 2) {
+          return `<svg viewBox="0 0 64 64" role="img" aria-label="Tercer lugar">
+             <defs>
+               <linearGradient id="${uid}Bronze" x1="0" x2="1">
+                 <stop offset="0%" stop-color="#e6a470"/>
+                 <stop offset="100%" stop-color="#9f542a"/>
+               </linearGradient>
+             </defs>
+             <path d="M16 4h10l6 18H22z" fill="#43c7b8"/>
+             <path d="M38 4h10l-6 18H32z" fill="#ff6b6b"/>
+             <circle cx="32" cy="36" r="19" fill="url(#${uid}Bronze)" stroke="#f2c2a2" stroke-width="2"/>
+             <circle cx="32" cy="36" r="13" fill="none" stroke="#ffd9bf" stroke-width="2" opacity=".6"/>
+             <text x="32" y="41" text-anchor="middle" font-size="18" font-weight="800" fill="#5f2b11">3</text>
+           </svg>`;
+        }
+
+        return `<svg viewBox="0 0 64 64" role="img" aria-label="Ganador">
+             <defs>
+               <linearGradient id="${uid}Blue" x1="0" x2="1">
+                 <stop offset="0%" stop-color="#5ec7ff"/>
+                 <stop offset="100%" stop-color="#1d62ff"/>
+               </linearGradient>
+             </defs>
+             <circle cx="32" cy="32" r="19" fill="url(#${uid}Blue)" stroke="#9fd9ff" stroke-width="2"/>
+             <path d="M32 21l3.2 6.5 7.1 1-5.1 5 1.2 7-6.4-3.4-6.4 3.4 1.2-7-5.1-5 7.1-1z" fill="#e6f5ff"/>
+           </svg>`;
+      }
+
       function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text || '';
         return div.innerHTML;
+      }
+
+      // ===== PANEL ADMIN =====
+      function renderAdminPanel() {
+        const body = $("adminBody");
+        if (!body) return;
+
+        body.innerHTML = "";
+
+        state.knownClients.forEach((c, i) => {
+          const tr = document.createElement("tr");
+
+          // Generar estrellas clickeables
+          let starsHtml = '<div class="stars-control">';
+          for (let s = 1; s <= 3; s++) {
+            const active = s <= (c.stars || 0) ? "active" : "";
+            starsHtml += `<span class="star ${active}" data-key="${c.key}" data-stars="${s}">★</span>`;
+          }
+          starsHtml += '</div>';
+
+          // Estado de cooldown (solo visible en admin)
+          const inCd = isInCooldown(c.name);
+          const cooldownStatus = inCd
+            ? '<span style="color:#FFD700;font-size:0.75rem;font-weight:700">COOLDOWN</span>'
+            : '<span style="opacity:0.4;font-size:0.75rem">—</span>';
+
+          tr.innerHTML = `
+            <td>${i + 1}</td>
+            <td>${escapeHtml(c.name)}</td>
+            <td>${starsHtml}</td>
+            <td>${cooldownStatus}</td>
+            <td><button class="btn danger" style="padding:4px 10px;font-size:0.8rem" data-admin-del="${c.key}">Eliminar</button></td>
+          `;
+
+          body.appendChild(tr);
+        });
+
+        // Listeners de estrellas
+        body.querySelectorAll(".star").forEach(star => {
+          star.onclick = () => {
+            const key = star.dataset.key;
+            const val = parseInt(star.dataset.stars);
+            const current = state.knownClients.find(c => c.key === key);
+            // Si ya tiene ese valor, bajar a valor-1 (permite poner 0)
+            const newStars = (current && current.stars === val) ? val - 1 : val;
+            setStars(key, newStars);
+          };
+        });
+
+        // Listeners de eliminar
+        body.querySelectorAll("[data-admin-del]").forEach(btn => {
+          btn.onclick = () => deleteAdminClient(btn.dataset.adminDel);
+        });
+
+        $("adminCount").textContent = `Total clientes: ${state.knownClients.length}`;
+      }
+
+      async function setStars(key, stars) {
+        const client = state.knownClients.find(c => c.key === key);
+        if (!client) return;
+
+        client.stars = Math.max(0, Math.min(3, stars));
+
+        await reqP(os(S.K, "readwrite").put({ key: client.key, name: client.name, stars: client.stars }));
+
+        renderAdminPanel();
+      }
+
+      async function addAdminClient(name) {
+        const clean = name.trim();
+        if (!clean) return;
+
+        const key = norm(clean);
+        const existing = state.knownClients.find(c => c.key === key);
+        if (existing) {
+          alert("Este cliente ya existe.");
+          return;
+        }
+
+        const client = { key, name: clean, stars: 1 };
+        await reqP(os(S.K, "readwrite").put(client));
+
+        state.knownClients.push(client);
+        state.knownClients.sort((a, b) => a.name.localeCompare(b.name));
+
+        renderKnownClients();
+        renderAdminPanel();
+
+        $("adminName").value = "";
+      }
+
+      async function deleteAdminClient(key) {
+        const client = state.knownClients.find(c => c.key === key);
+        if (!client) return;
+
+        if (!confirm(`Eliminar a "${client.name}" de la base de clientes?`)) return;
+
+        await reqP(os(S.K, "readwrite").delete(key));
+
+        state.knownClients = state.knownClients.filter(c => c.key !== key);
+
+        renderKnownClients();
+        renderAdminPanel();
       }
 
       // ===== REGISTRO =====
@@ -1935,7 +2356,7 @@
 
           $("projectionShell").classList.add("hype");
 
-          const w = pool[secureIndex(pool.length)];
+          const w = weightedSelect(pool);
           const ms = 4000 + secureIndex(2001);
 
           $("start").textContent = "SORTEANDO...";
@@ -2287,7 +2708,7 @@
           return;
         }
 
-        if (!confirm("Se eliminara TODA la base de datos y se recreara desde cero.\nParticipantes, sorteos, historial y configuracion se perderan.\n\nEsta accion no se puede deshacer. Continuar?"))
+        if (!confirm("Se eliminaran participantes, sorteos, historial y configuracion.\nLos clientes del panel Admin se preservaran.\n\nEsta accion no se puede deshacer. Continuar?"))
           return;
 
         await emergencyReset();
@@ -2310,12 +2731,15 @@
         $("operatorView").classList.toggle("hidden", v !== "operator");
         $("projectionView").classList.toggle("hidden", v !== "projection");
         $("winnersView").classList.toggle("hidden", v !== "winners");
+        $("adminView").classList.toggle("hidden", v !== "admin");
 
-        // Si cambiamos a la vista de ganadores, iniciar/continuar confetti y renderizar
         if (v === "winners") {
           initWinnersConfetti();
-          // Pequeño delay para asegurar que los datos estén guardados
           setTimeout(() => renderWinners(), 100);
+        }
+
+        if (v === "admin") {
+          renderAdminPanel();
         }
       }
 
@@ -2332,6 +2756,10 @@
         console.log("🚨 INICIANDO RESETEO DE EMERGENCIA...");
 
         try {
+          // Guardar datos de clientes Admin ANTES del reset (son permanentes)
+          const savedClients = [...state.knownClients];
+          console.log(`📋 Preservando ${savedClients.length} clientes Admin`);
+
           // Cerrar todas las conexiones de IndexedDB
           if (db) {
             db.close();
@@ -2347,10 +2775,9 @@
 
           console.log("✅ Base de datos eliminada");
 
-          // Resetear estado en memoria
+          // Resetear estado en memoria (excepto knownClients)
           state.participants = [];
           state.draws = [];
-          state.knownClients = [];
           state.spinning = false;
           state.soundOn = true;
           state.config = {
@@ -2379,6 +2806,13 @@
           db = await openDB();
           await saveConfig();
 
+          // Restaurar clientes Admin
+          state.knownClients = savedClients;
+          for (const c of savedClients) {
+            await reqP(os(S.K, "readwrite").put(c));
+          }
+          console.log(`✅ ${savedClients.length} clientes Admin restaurados`);
+
           console.log("✅ Base de datos recreada");
 
           // Re-renderizar todo
@@ -2399,7 +2833,7 @@
           $("register").disabled = false;
 
           console.log("✅ RESETEO COMPLETADO");
-          alert("✅ Sistema reseteado completamente. Ya puedes registrar participantes.");
+          alert("✅ Sistema reseteado. Los clientes Admin se han preservado.");
           return true;
         } catch (error) {
           console.error("❌ Error en reseteo de emergencia:", error);
@@ -2429,10 +2863,67 @@
         return state;
       }
 
+      function diagnosticoSorteo() {
+        console.log("DIAGNOSTICO DEL SISTEMA DE SORTEO");
+        console.log("=".repeat(50));
+
+        const pool = winnerPool();
+        console.log(`\nPool elegible: ${pool.length} participantes`);
+
+        const distribution = { 0: [], 1: [], 2: [], 3: [] };
+        pool.forEach(p => {
+          const stars = getParticipantStars(p.name);
+          distribution[stars].push(p.name);
+        });
+
+        console.log("\nDistribucion por estrellas:");
+        for (let s = 3; s >= 0; s--) {
+          if (distribution[s].length > 0) {
+            console.log(`  ${s} estrellas: ${distribution[s].length} personas - ${distribution[s].join(', ')}`);
+          }
+        }
+
+        const maxStars = Math.max(...pool.map(p => getParticipantStars(p.name)));
+        if (maxStars === 0) {
+          console.warn("\nALERTA: Todos los participantes tienen 0 estrellas");
+          console.warn("   Se aplicara seleccion uniforme (fallback)");
+        }
+
+        // Participantes en cooldown con sorteos restantes
+        const inCooldown = state.participants.filter(p => isInCooldown(p.name));
+        console.log(`\nParticipantes en cooldown (${COOLDOWN_CONSECUTIVE_WINS} victorias consecutivas -> ${COOLDOWN_DURATION} sorteos de penalizacion):`);
+        if (inCooldown.length > 0) {
+          const sortedDraws = [...state.draws].sort((a, b) => new Date(b.drawAt) - new Date(a.drawAt));
+          inCooldown.forEach(p => {
+            const wins = [];
+            for (let i = 0; i < sortedDraws.length && wins.length < COOLDOWN_CONSECUTIVE_WINS; i++) {
+              if (norm(sortedDraws[i].winnerName) === norm(p.name)) {
+                wins.push({ position: i });
+              }
+            }
+            const remaining = wins.length > 0 ? COOLDOWN_DURATION - wins[0].position : 0;
+            console.log(`  - ${p.name} (${remaining} sorteos restantes para reactivacion)`);
+          });
+        } else {
+          console.log("  (ninguno)");
+        }
+
+        if (pool.length > 0) {
+          console.log("\nSimulando seleccion...");
+          const winner = weightedSelect(pool);
+          console.log(`   Ganador de prueba: ${winner.name} (${getParticipantStars(winner.name)} estrellas)`);
+        } else {
+          console.error("\nERROR: Pool vacio, no se puede realizar sorteo");
+        }
+
+        return { pool, distribution, maxStars, inCooldown };
+      }
+
       // Exponer funciones globalmente
       window.emergencyReset = emergencyReset;
       window.diagnostico = diagnostico;
-      window.appState = state; // Para inspección directa
+      window.diagnosticoSorteo = diagnosticoSorteo;
+      window.appState = state; // Para inspeccion directa
 
       // ===== PANTALLA COMPLETA =====
       function toggleFullscreen() {
@@ -2488,6 +2979,18 @@
         $("goOperator").onclick = () => switchView("operator");
         $("goProjection").onclick = () => switchView("projection");
         $("goWinners").onclick = () => switchView("winners");
+
+        // Panel Admin
+        $("goAdmin").onclick = () => {
+          const pass = prompt("Ingresa la contrasena de administrador:");
+          if (pass === "1980") switchView("admin");
+          else if (pass !== null) alert("Contrasena incorrecta.");
+        };
+        $("adminBack").onclick = () => switchView("operator");
+        $("adminAdd").onclick = () => addAdminClient($("adminName").value);
+        $("adminName").addEventListener("keydown", (e) => {
+          if (e.key === "Enter") addAdminClient($("adminName").value);
+        });
 
         // Botón de pantalla completa
         $("fullscreenBtn").onclick = toggleFullscreen;
