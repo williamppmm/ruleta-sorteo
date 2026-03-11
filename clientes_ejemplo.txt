@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────
+# LISTADO DE CLIENTES — Sistema de Sorteo
+# ─────────────────────────────────────────────────────
+#
+# Formato: Nombre, Estrellas
+#
+#   Estrellas:
+#     3 → Cliente frecuente de alto valor
+#     2 → Juega diario, inversión media-baja
+#     1 → Cliente ocasional
+#     0 → Visitante del día (también se puede omitir)
+#
+# Las líneas que empiezan con # son comentarios.
+# Las líneas vacías se ignoran.
+# Se acepta coma (,) o punto y coma (;) como separador.
+# ─────────────────────────────────────────────────────
+
+# Clientes frecuentes (3 estrellas)
+Juan Pérez, 3
+María García, 3
+Carlos López, 3
+Ana Martínez, 3
+Roberto Soto, 3
+
+# Clientes regulares (2 estrellas)
+Claudia Fuentes, 2
+Diego Herrera, 2
+Valentina Torres, 2
+Sebastián Muñoz, 2
+Camila Rojas, 2
+Felipe Vargas, 2
+
+# Clientes ocasionales (1 estrella)
+Andrés Silva, 1
+Francisca Castro, 1
+Matías Morales, 1
+Isidora Fernández, 1
+
+# Sin estrellas definidas → quedan en 0 automáticamente
+Visitante Frecuente
+Nuevo Cliente

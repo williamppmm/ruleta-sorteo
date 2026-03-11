@@ -1,0 +1,479 @@
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useStore } from '../store/useStore.jsx'
+import { seleccionarGanador } from '../engine/probabilidades.js'
+import { estaVetadoIntradia } from '../engine/vetos.js'
+import { formatPrize } from '../utils/helpers.js'
+import { beep, ding } from '../utils/audio.js'
+
+const DURACION_ANIMACION = 7200
+const PAUSA_GANADOR_MS = 900
+const COLORES = ['color-1', 'color-2', 'color-3', 'color-4', 'color-5', 'color-6']
+
+function secureIdx(max) {
+  const buf = new Uint32Array(1)
+  const limit = 0xffffffff - (0xffffffff % max)
+  let x
+  do {
+    crypto.getRandomValues(buf)
+    x = buf[0]
+  } while (x >= limit)
+  return x % max
+}
+
+function construirSecuencia(totalBoxes, targetIdx) {
+  if (totalBoxes <= 1) return [targetIdx]
+
+  let actual = secureIdx(totalBoxes)
+  const secuencia = []
+  const pasosBase = Math.max(30, totalBoxes * 9)
+
+  for (let i = 0; i < pasosBase; i += 1) {
+    actual = (actual + 1) % totalBoxes
+    secuencia.push(actual)
+  }
+
+  return [
+    ...secuencia,
+    (targetIdx - 3 + totalBoxes) % totalBoxes,
+    (targetIdx - 2 + totalBoxes) % totalBoxes,
+    (targetIdx - 1 + totalBoxes) % totalBoxes,
+    targetIdx,
+    targetIdx,
+    targetIdx,
+  ]
+}
+
+export default function SorteoPanel({ onGanador }) {
+  const { state, actions, derived } = useStore()
+  const [fase, setFase] = useState('espera')
+  const [ganadorNombre, setGanadorNombre] = useState(null)
+  const [indiceActivo, setIndiceActivo] = useState(null)
+  const [indiceGanador, setIndiceGanador] = useState(null)
+  const [debugEventos, setDebugEventos] = useState([])
+  const [participantesSnapshot, setParticipantesSnapshot] = useState([])
+  const animRef = useRef(null)
+  const timeoutRef = useRef(null)
+  const settleTimeoutRef = useRef(null)
+
+  const cfg = state.config
+  const ronda = cfg.rondaActual
+  const total = cfg.totalRondas
+  const premio = derived.premioRondaActual
+
+  const visibles = state.participantes.filter(
+    p => !estaVetadoIntradia(p, derived.ganadoresDelDia)
+  )
+  const participantesRender = fase === 'espera' ? visibles : participantesSnapshot
+
+  const logDebug = useCallback((mensaje, data = null) => {
+    const stamp = new Date().toLocaleTimeString('es-CO', { hour12: false })
+    const entrada = { stamp, mensaje, data }
+    console.log(`[Sorteo ${stamp}] ${mensaje}`, data ?? '')
+    setDebugEventos(prev => [...prev.slice(-7), entrada])
+  }, [])
+
+  useEffect(() => {
+    if (fase === 'espera') {
+      setParticipantesSnapshot(visibles)
+    }
+  }, [fase, visibles])
+
+  useEffect(() => {
+    if (participantesRender.length === 0) return
+    logDebug('Render de tarjetas.', {
+      fase,
+      participantes: participantesRender.map(p => p.nombre),
+      indiceActivo,
+      nombreActivo: participantesRender[indiceActivo]?.nombre ?? null,
+      indiceGanador,
+      nombreGanadorTarjeta: participantesRender[indiceGanador]?.nombre ?? null,
+      ganadorNombre,
+    })
+  }, [fase, ganadorNombre, indiceActivo, indiceGanador, logDebug, participantesRender])
+
+  const limpiarAnimacion = useCallback(() => {
+    if (animRef.current) cancelAnimationFrame(animRef.current)
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current)
+  }, [])
+
+  useEffect(() => () => limpiarAnimacion(), [limpiarAnimacion])
+
+  const animarRuleta = useCallback((targetName, participantesAnimacion) => {
+    return new Promise(resolve => {
+      const targetIdx = participantesAnimacion.findIndex(p => p.nombre === targetName)
+      if (targetIdx < 0) {
+        logDebug('No se encontro el objetivo dentro de los participantes visibles.', {
+          targetName,
+          visibles: participantesAnimacion.map(p => p.nombre),
+        })
+        resolve()
+        return
+      }
+
+      const secuencia = construirSecuencia(participantesAnimacion.length, targetIdx)
+      const inicio = performance.now()
+
+      logDebug('Animacion iniciada.', {
+        targetName,
+        targetIdx,
+        participantes: participantesAnimacion.map(p => p.nombre),
+        pasos: secuencia.length,
+      })
+
+      setIndiceGanador(null)
+      setIndiceActivo(secuencia[0] ?? targetIdx)
+
+      function tick(now) {
+        const progress = Math.min((now - inicio) / DURACION_ANIMACION, 1)
+        const eased = 1 - Math.pow(1 - progress, 2.6)
+        const idxSecuencia = Math.min(
+          secuencia.length - 1,
+          Math.floor(eased * secuencia.length)
+        )
+        const idx = secuencia[idxSecuencia] ?? targetIdx
+
+        setIndiceActivo(prev => (prev === idx ? prev : idx))
+
+        if (progress < 0.985) {
+          beep(500 + progress * 650, 0.025, 0.03 + progress * 0.015)
+          animRef.current = requestAnimationFrame(tick)
+          return
+        }
+
+        setIndiceActivo(targetIdx)
+        setIndiceGanador(targetIdx)
+        ding()
+        settleTimeoutRef.current = setTimeout(() => {
+          setIndiceActivo(null)
+          logDebug('Animacion finalizada.', { targetName, targetIdx })
+          resolve()
+        }, PAUSA_GANADOR_MS)
+      }
+
+      animRef.current = requestAnimationFrame(tick)
+    })
+  }, [logDebug])
+
+  const rondasCompletadas = cfg.idsRondasDelDia?.length ?? 0
+  const todasRondasCompletadas = rondasCompletadas >= cfg.totalRondas
+
+  const iniciar = useCallback(async () => {
+    if (fase !== 'espera' || visibles.length === 0) return
+    if (todasRondasCompletadas) return
+
+    let ganador
+    try {
+      ganador = seleccionarGanador(visibles, state.clientes, derived.ganadoresDelDia)
+      logDebug('Ganador calculado por el motor.', {
+        ganador,
+        visibles: visibles.map(p => p.nombre),
+        clientes: state.clientes.length,
+        ganadoresDelDia: derived.ganadoresDelDia,
+      })
+    } catch (e) {
+      logDebug('Error al seleccionar ganador.', { message: e.message })
+      alert('Error al seleccionar ganador: ' + e.message)
+      return
+    }
+
+    if (!ganador?.nombre) {
+      logDebug('El motor devolvio un resultado invalido.', { ganador })
+      alert('El sorteo no pudo continuar porque el ganador calculado es invalido.')
+      setFase('espera')
+      return
+    }
+
+    limpiarAnimacion()
+    setGanadorNombre(null)
+    setIndiceGanador(null)
+    setParticipantesSnapshot(visibles)
+    setFase('animando')
+
+    await animarRuleta(ganador.nombre, visibles)
+
+    const sorteo = await actions.registrarGanador({
+      ganadorNombre: ganador.nombre,
+      valorPremio: premio,
+      titulo: cfg.titulo,
+    })
+    logDebug('Ganador registrado en el historial.', { sorteo })
+
+    setGanadorNombre(ganador.nombre)
+    setFase('ganador')
+    timeoutRef.current = setTimeout(() => onGanador(sorteo), 5200)
+  }, [
+    actions,
+    animarRuleta,
+    cfg.titulo,
+    derived.ganadoresDelDia,
+    fase,
+    limpiarAnimacion,
+    logDebug,
+    onGanador,
+    premio,
+    state.clientes,
+    todasRondasCompletadas,
+    visibles,
+  ])
+
+  return (
+    <div className="aurora-bg min-h-screen flex flex-col">
+      <header className="text-center pt-6 pb-3 px-4 shrink-0">
+        <h1
+          className="font-black text-yellow-400 tracking-wide drop-shadow"
+          style={{ fontSize: 'clamp(1.6rem, 3vw, 2.8rem)' }}
+        >
+          {cfg.titulo || 'Sorteo en Vivo'}
+        </h1>
+        <div
+          className="flex items-center justify-center gap-6 mt-2 text-gray-300"
+          style={{ fontSize: 'clamp(1rem, 1.6vw, 1.35rem)' }}
+        >
+          <span>
+            Ronda <strong className="text-white">{ronda + 1}</strong> de {total}
+          </span>
+          <span className="text-gray-600">|</span>
+          <span>
+            {participantesRender.length} participante{participantesRender.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      </header>
+
+      <div className="text-center py-3 shrink-0">
+        <p className="text-gray-400 text-sm uppercase tracking-widest mb-1">Premio</p>
+        <p
+          className="prize-glow font-black text-yellow-300"
+          style={{ fontSize: 'clamp(2.5rem, 5vw, 5rem)', lineHeight: 1.1 }}
+        >
+          {formatPrize(premio) || '-'}
+        </p>
+      </div>
+
+      <div className="flex-1 px-4 pb-2 overflow-auto">
+        <div
+          className="mx-auto px-4 py-4 rounded-2xl"
+          style={{
+            maxWidth: 'min(1200px, 96vw)',
+            background: 'linear-gradient(135deg,rgba(26,31,58,.6),rgba(30,35,71,.6))',
+            border: '2px solid rgba(255,215,0,.25)',
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          {participantesRender.length === 0 ? (
+            <p className="text-gray-500 text-center py-10 text-xl">Sin participantes</p>
+          ) : (
+            <div className="grid-sorteo">
+              {participantesRender.map((p, i) => (
+                <div
+                  key={p.id}
+                  className={[
+                    'participant-box',
+                    COLORES[i % 6],
+                    indiceActivo === i ? 'card-active' : '',
+                    indiceGanador === i ? 'card-winner' : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  {p.nombre}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="text-center py-6 shrink-0">
+        {fase === 'espera' && todasRondasCompletadas && (
+          <div className="flex flex-col items-center gap-3">
+            <p
+              className="text-yellow-400 font-bold"
+              style={{ fontSize: 'clamp(1.2rem, 1.8vw, 1.6rem)' }}
+            >
+              Todas las rondas completadas
+            </p>
+            <p className="text-gray-500" style={{ fontSize: 'clamp(.9rem, 1.2vw, 1.05rem)' }}>
+              Vuelve al panel admin para programar una nueva sesión.
+            </p>
+          </div>
+        )}
+
+        {fase === 'espera' && !todasRondasCompletadas && (
+          <div className="flex flex-col items-center gap-3">
+            <button
+              onClick={iniciar}
+              disabled={participantesRender.length === 0}
+              className="font-black text-black bg-yellow-500 hover:bg-yellow-400
+                disabled:opacity-30 disabled:cursor-not-allowed
+                px-14 py-5 rounded-2xl transition-all duration-200 active:scale-95"
+              style={{
+                fontSize: 'clamp(1.3rem, 2vw, 2rem)',
+                boxShadow: '0 0 40px rgba(234,179,8,.5)',
+              }}
+            >
+              INICIAR SORTEO
+            </button>
+            <p
+              className="text-gray-400"
+              style={{ fontSize: 'clamp(.95rem, 1.2vw, 1.05rem)' }}
+            >
+              Presiona el boton para lanzar la animacion y revelar el ganador.
+            </p>
+          </div>
+        )}
+
+        {fase === 'animando' && (
+          <div className="flex flex-col items-center gap-2">
+            <p
+              className="text-yellow-300 font-bold animate-pulse"
+              style={{ fontSize: 'clamp(1.4rem, 2vw, 2rem)' }}
+            >
+              Sorteando...
+            </p>
+            <p
+              className="text-gray-400"
+              style={{ fontSize: 'clamp(.95rem, 1.2vw, 1.05rem)' }}
+            >
+              La ruleta recorrera varias tarjetas antes de caer en el ganador.
+            </p>
+          </div>
+        )}
+
+        {fase === 'ganador' && ganadorNombre && (
+          <p
+            className="text-yellow-400 font-black animate-bounce"
+            style={{ fontSize: 'clamp(1.6rem, 2.5vw, 2.5rem)' }}
+          >
+            {ganadorNombre}
+          </p>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {fase === 'ganador' && ganadorNombre && (
+          <GanadorOverlay nombre={ganadorNombre} premio={premio} />
+        )}
+      </AnimatePresence>
+
+      <div className="fixed left-3 bottom-3 z-40 max-w-[min(520px,92vw)] rounded-xl border border-white/10 bg-black/55 px-3 py-2 text-left backdrop-blur">
+        <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-yellow-300">
+          Debug sorteo
+        </p>
+        <div className="mt-2 space-y-1 text-[11px] text-gray-300">
+          {debugEventos.length === 0 ? (
+            <p>Sin eventos todavia.</p>
+          ) : (
+            debugEventos.map((evento, index) => (
+              <p key={`${evento.stamp}-${index}`}>
+                <span className="text-gray-500">{evento.stamp}</span> {evento.mensaje}
+              </p>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GanadorOverlay({ nombre, premio }) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+      style={{
+        background: 'radial-gradient(ellipse 120% 80% at 50% 30%, rgba(255,140,0,.18), rgba(0,0,0,.88))',
+      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <motion.div
+        className="relative z-10 select-none flex flex-col items-center px-8"
+        initial={{ scale: 0.85, y: 40 }}
+        animate={{ scale: 1, y: 0 }}
+        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <motion.div
+          className="absolute inset-0 blur-3xl pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle, rgba(255,201,71,.4) 0%, rgba(255,94,0,.28) 34%, rgba(255,94,0,0) 70%)',
+            transform: 'scale(1.5)',
+          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 1, 0.9, 1] }}
+          transition={{ duration: 1.3 }}
+        />
+
+        <motion.h1
+          className="relative z-20 text-center font-black uppercase leading-none"
+          style={{
+            fontSize: 'clamp(3.8rem, 13vw, 11rem)',
+            fontFamily: 'Arial Black, Impact, sans-serif',
+            background: 'linear-gradient(180deg, #fffdf2 0%, #ffe9a8 18%, #ffc04d 42%, #ff7a00 68%, #ff4d00 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            color: 'transparent',
+            WebkitTextStroke: '2px rgba(255,244,204,.4)',
+          }}
+          initial={{ letterSpacing: '-0.35em', y: 0 }}
+          animate={{
+            letterSpacing: ['-0.35em', '0.04em', '0.02em'],
+            y: [0, -8, 0],
+            textShadow: [
+              '0 0 10px rgba(255,255,255,.2)',
+              '0 0 18px rgba(255,255,255,.8), 0 0 34px rgba(255,196,61,.9), 0 0 55px rgba(255,102,0,.9)',
+              '0 0 12px rgba(255,255,255,.7), 0 0 28px rgba(255,196,61,.8), 0 0 48px rgba(255,102,0,.8)',
+            ],
+          }}
+          transition={{ duration: 1.15, ease: [0.16, 1, 0.3, 1] }}
+        >
+          GANADOR
+        </motion.h1>
+
+        <motion.div
+          className="mx-auto mt-4 h-2 rounded-full"
+          style={{
+            width: 'min(65vw, 780px)',
+            background: 'linear-gradient(90deg, rgba(255,128,0,0), rgba(255,235,160,.95), rgba(255,128,0,0))',
+            filter: 'blur(1px)',
+            boxShadow: '0 0 18px rgba(255,196,61,.7)',
+          }}
+          initial={{ scaleX: 0, opacity: 0 }}
+          animate={{ scaleX: [0, 1.1, 1], opacity: [0, 1, 0.85] }}
+          transition={{ duration: 0.9, delay: 0.22, ease: 'easeOut' }}
+        />
+
+        <motion.p
+          className="relative z-20 text-center font-black text-white leading-tight mt-6"
+          style={{
+            fontSize: 'clamp(2rem, 6vw, 5rem)',
+            textShadow: '0 0 30px rgba(255,200,80,.6), 0 4px 20px rgba(0,0,0,.8)',
+          }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        >
+          {nombre}
+        </motion.p>
+
+        <motion.p
+          className="relative z-20 text-center font-black mt-3"
+          style={{
+            fontSize: 'clamp(1.6rem, 3.5vw, 3rem)',
+            background: 'linear-gradient(180deg, #ffe9a8 0%, #ffc04d 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            color: 'transparent',
+            textShadow: 'none',
+            filter: 'drop-shadow(0 0 12px rgba(255,196,61,.7))',
+          }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 1, ease: 'easeOut' }}
+        >
+          {formatPrize(premio)}
+        </motion.p>
+      </motion.div>
+    </motion.div>
+  )
+}
