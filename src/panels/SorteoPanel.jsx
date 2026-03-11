@@ -120,7 +120,10 @@ export default function SorteoPanel({ onGanador }) {
       }
 
       const secuencia = construirSecuencia(participantesAnimacion.length, targetIdx)
+      // El targetIdx aparece por primera vez en la posición secuencia.length - 3
+      const idxPrimerTarget = secuencia.length - 3
       const inicio = performance.now()
+      let dingDisparado = false
 
       logDebug('Animacion iniciada.', {
         targetName,
@@ -143,15 +146,22 @@ export default function SorteoPanel({ onGanador }) {
 
         setIndiceActivo(prev => (prev === idx ? prev : idx))
 
+        // Dispara ding y marca ganador en cuanto la animación visualmente aterriza
+        if (!dingDisparado && idxSecuencia >= idxPrimerTarget) {
+          setIndiceGanador(targetIdx)
+          ding()
+          dingDisparado = true
+        }
+
         if (progress < 0.985) {
+          if (!dingDisparado) {
           beep(500 + progress * 650, 0.025, 0.03 + progress * 0.015)
+          }
           animRef.current = requestAnimationFrame(tick)
           return
         }
 
         setIndiceActivo(targetIdx)
-        setIndiceGanador(targetIdx)
-        ding()
         settleTimeoutRef.current = setTimeout(() => {
           setIndiceActivo(null)
           logDebug('Animacion finalizada.', { targetName, targetIdx })
