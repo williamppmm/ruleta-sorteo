@@ -51,7 +51,6 @@ export default function SorteoPanel({ onGanador }) {
   const [ganadorNombre, setGanadorNombre] = useState(null)
   const [indiceActivo, setIndiceActivo] = useState(null)
   const [indiceGanador, setIndiceGanador] = useState(null)
-  const [debugEventos, setDebugEventos] = useState([])
   const [participantesSnapshot, setParticipantesSnapshot] = useState([])
   const animRef = useRef(null)
   const timeoutRef = useRef(null)
@@ -75,9 +74,7 @@ export default function SorteoPanel({ onGanador }) {
 
   const logDebug = useCallback((mensaje, data = null) => {
     const stamp = new Date().toLocaleTimeString('es-CO', { hour12: false })
-    const entrada = { stamp, mensaje, data }
     console.log(`[Sorteo ${stamp}] ${mensaje}`, data ?? '')
-    setDebugEventos(prev => [...prev.slice(-7), entrada])
   }, [])
 
   useEffect(() => {
@@ -85,19 +82,6 @@ export default function SorteoPanel({ onGanador }) {
       setParticipantesSnapshot(visibles)
     }
   }, [fase, visibles])
-
-  useEffect(() => {
-    if (participantesRender.length === 0) return
-    logDebug('Render de tarjetas.', {
-      fase,
-      participantes: participantesRender.map(p => p.nombre),
-      indiceActivo,
-      nombreActivo: participantesRender[indiceActivo]?.nombre ?? null,
-      indiceGanador,
-      nombreGanadorTarjeta: participantesRender[indiceGanador]?.nombre ?? null,
-      ganadorNombre,
-    })
-  }, [fase, ganadorNombre, indiceActivo, indiceGanador, logDebug, participantesRender])
 
   const limpiarAnimacion = useCallback(() => {
     if (animRef.current) cancelAnimationFrame(animRef.current)
@@ -242,7 +226,8 @@ export default function SorteoPanel({ onGanador }) {
 
   return (
     <div className="aurora-bg min-h-screen flex flex-col">
-      <header className="text-center pt-6 pb-3 px-4 shrink-0">
+      <div style={{ visibility: fase === 'ganador' ? 'hidden' : 'visible' }}>
+        <header className="text-center pt-6 pb-3 px-4 shrink-0">
         <h1
           className="font-black text-yellow-400 tracking-wide drop-shadow"
           style={{ fontSize: 'clamp(1.6rem, 3vw, 2.8rem)' }}
@@ -363,14 +348,9 @@ export default function SorteoPanel({ onGanador }) {
           </div>
         )}
 
-        {fase === 'ganador' && ganadorNombre && (
-          <p
-            className="text-yellow-400 font-black animate-bounce"
-            style={{ fontSize: 'clamp(1.6rem, 2.5vw, 2.5rem)' }}
-          >
-            {ganadorNombre}
-          </p>
-        )}
+        {/* El nombre del ganador lo muestra GanadorOverlay — no se duplica aquí */}
+      </div>
+
       </div>
 
       <AnimatePresence>
@@ -378,44 +358,48 @@ export default function SorteoPanel({ onGanador }) {
           <GanadorOverlay nombre={ganadorNombre} premio={premio} />
         )}
       </AnimatePresence>
-
-      <div className="fixed left-3 bottom-3 z-40 max-w-[min(520px,92vw)] rounded-xl border border-white/10 bg-black/55 px-3 py-2 text-left backdrop-blur">
-        <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-yellow-300">
-          Debug sorteo
-        </p>
-        <div className="mt-2 space-y-1 text-[11px] text-gray-300">
-          {debugEventos.length === 0 ? (
-            <p>Sin eventos todavia.</p>
-          ) : (
-            debugEventos.map((evento, index) => (
-              <p key={`${evento.stamp}-${index}`}>
-                <span className="text-gray-500">{evento.stamp}</span> {evento.mensaje}
-              </p>
-            ))
-          )}
-        </div>
-      </div>
     </div>
   )
 }
 
+// Fase 1: entrada + exhibicion del ganador
+// Fase 2: salida con zoom + fade hacia GanadoresPanel
+const SALIDA_INICIO_MS  = 3400
+const SALIDA_DURACION_S = 1.5
+
 function GanadorOverlay({ nombre, premio }) {
+  const [saliendo, setSaliendo] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setSaliendo(true), SALIDA_INICIO_MS)
+    return () => clearTimeout(t)
+  }, [])
+
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+      className="flex flex-col items-center justify-center overflow-hidden"
       style={{
-        background: 'radial-gradient(ellipse 120% 80% at 50% 30%, rgba(255,140,0,.18), rgba(0,0,0,.88))',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 999,
+        backgroundColor: '#04040f',
+        background: 'radial-gradient(ellipse 120% 80% at 50% 30%, rgba(255,140,0,.22), #04040f)',
       }}
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
+      animate={{ opacity: saliendo ? 0 : 1 }}
+      transition={{ duration: saliendo ? SALIDA_DURACION_S : 0.6, ease: saliendo ? [0.4, 0, 1, 1] : 'easeOut' }}
     >
       <motion.div
         className="relative z-10 select-none flex flex-col items-center px-8"
-        initial={{ scale: 0.85, y: 40 }}
-        animate={{ scale: 1, y: 0 }}
-        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ scale: 0.85, y: 40, opacity: 0 }}
+        animate={saliendo
+          ? { scale: 1.3, y: -50, opacity: 0 }
+          : { scale: 1,   y: 0,   opacity: 1 }
+        }
+        transition={saliendo
+          ? { duration: SALIDA_DURACION_S * 0.75, ease: [0.4, 0, 1, 1] }
+          : { duration: 1.2, ease: [0.16, 1, 0.3, 1] }
+        }
       >
         <motion.div
           className="absolute inset-0 blur-3xl pointer-events-none"
@@ -424,7 +408,7 @@ function GanadorOverlay({ nombre, premio }) {
             transform: 'scale(1.5)',
           }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 1, 0.9, 1] }}
+          animate={{ opacity: saliendo ? 0 : [0, 1, 0.9, 1] }}
           transition={{ duration: 1.3 }}
         />
 

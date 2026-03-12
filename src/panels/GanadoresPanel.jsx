@@ -15,6 +15,8 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
     .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
     .slice(0, cfg.totalRondas)
 
+  const ganadoresCompactos = ganadoresDelDia.length >= 3
+
   async function handleSiguienteRonda() {
     await actions.siguienteRonda()
     onSiguienteRonda()
@@ -30,7 +32,7 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
   }
 
   return (
-    <div className="aurora-bg min-h-screen flex flex-col items-center justify-center overflow-hidden">
+    <div className="aurora-bg h-screen overflow-hidden">
       {esUltimaRonda && <ConfettiScreen />}
 
       <div className="fixed top-4 left-4 z-30">
@@ -43,24 +45,42 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
       </div>
 
       <div
-        className="relative z-10 w-full text-center px-6 py-10 fade-in"
-        style={{ maxWidth: 'min(800px, 96vw)' }}
+        className="fade-in"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 20,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+          overflow: 'hidden',
+          paddingTop: esUltimaRonda ? '5.5rem' : '2.5rem',
+          paddingBottom: esUltimaRonda ? '1.25rem' : '2.5rem',
+          paddingLeft: '1.5rem',
+          paddingRight: '1.5rem',
+        }}
       >
+        <div
+          className="w-full text-center"
+          style={{
+            maxWidth: esUltimaRonda ? 'min(980px, 96vw)' : 'min(800px, 96vw)',
+          }}
+        >
         {!esUltimaRonda && ultimoSorteo && (
           <>
-            <div className="flex justify-center mb-5">
+            <div className="mb-5 flex justify-center">
               <WinnerBadge index={rondasCompletadas - 1} />
             </div>
 
             <p
-              className="text-gray-400 uppercase tracking-widest mb-3"
+              className="mb-3 text-gray-400 uppercase tracking-widest"
               style={{ fontSize: 'clamp(1rem, 1.5vw, 1.3rem)' }}
             >
               Ganador
             </p>
 
             <h2
-              className="font-black text-white leading-tight mb-4"
+              className="mb-4 font-black leading-tight text-white"
               style={{
                 fontSize: 'clamp(3rem, 8vw, 7rem)',
                 textShadow: '0 0 40px rgba(255,255,255,.25)',
@@ -70,14 +90,14 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
             </h2>
 
             <p
-              className="font-black text-yellow-300 prize-glow mb-3"
+              className="mb-3 font-black text-yellow-300 prize-glow"
               style={{ fontSize: 'clamp(2.5rem, 5.5vw, 5rem)', lineHeight: 1.1 }}
             >
               {formatPrize(ultimoSorteo.valorPremio)}
             </p>
 
             <p
-              className="text-gray-500 mb-10"
+              className="mb-10 text-gray-500"
               style={{ fontSize: 'clamp(.9rem, 1.3vw, 1.1rem)' }}
             >
               {fmtFecha(ultimoSorteo.fecha)} - {ultimoSorteo.hora}
@@ -86,8 +106,7 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
             <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
               <button
                 onClick={handleSiguienteRonda}
-                className="font-black text-black bg-yellow-500 hover:bg-yellow-400
-                  px-14 py-5 rounded-2xl transition-all duration-200 active:scale-95"
+                className="rounded-2xl bg-yellow-500 px-14 py-5 font-black text-black transition-all duration-200 active:scale-95 hover:bg-yellow-400"
                 style={{
                   fontSize: 'clamp(1.3rem, 2vw, 2rem)',
                   boxShadow: '0 0 40px rgba(234,179,8,.5)',
@@ -98,15 +117,14 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
 
               <button
                 onClick={onVolverAdmin}
-                className="font-semibold text-white bg-white/10 hover:bg-white/15
-                  border border-white/15 px-8 py-4 rounded-2xl transition-all duration-200 active:scale-95"
+                className="rounded-2xl border border-white/15 bg-white/10 px-8 py-4 font-semibold text-white transition-all duration-200 active:scale-95 hover:bg-white/15"
                 style={{ fontSize: 'clamp(1rem, 1.4vw, 1.1rem)' }}
               >
                 Volver al panel
               </button>
             </div>
 
-            <div className="flex justify-center gap-2 mt-8">
+            <div className="mt-8 flex justify-center gap-2">
               {Array.from({ length: cfg.totalRondas }).map((_, i) => (
                 <div
                   key={i}
@@ -121,58 +139,98 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
 
         {esUltimaRonda && (
           <>
-            <p style={{ fontSize: 'clamp(3rem, 6vw, 5rem)' }}>🏆</p>
+            <p
+              style={{
+                fontSize: ganadoresCompactos ? 'clamp(2.2rem, 4vw, 3rem)' : 'clamp(3rem, 6vw, 5rem)',
+                marginBottom: '.5rem',
+              }}
+            >
+              🏆
+            </p>
 
             <h2
-              className="font-black text-white mb-2"
-              style={{ fontSize: 'clamp(2rem, 4.5vw, 4rem)' }}
+              className="mb-2 font-black text-white"
+              style={{ fontSize: ganadoresCompactos ? 'clamp(1.8rem, 3.2vw, 2.9rem)' : 'clamp(2rem, 4.5vw, 4rem)' }}
             >
               Sorteo finalizado
             </h2>
 
             <p
-              className="text-gray-400 mb-8"
-              style={{ fontSize: 'clamp(1rem, 1.6vw, 1.4rem)' }}
+              className="text-gray-400"
+              style={{
+                fontSize: ganadoresCompactos ? 'clamp(.92rem, 1.2vw, 1.02rem)' : 'clamp(1rem, 1.6vw, 1.4rem)',
+                marginBottom: ganadoresCompactos ? '1rem' : '1.8rem',
+              }}
             >
               {cfg.titulo || 'Sorteo en Vivo'} - {fmtFecha(new Date().toISOString())}
             </p>
 
-            <div className="space-y-4 mb-8 text-left">
+            <div
+              className="mx-auto w-full text-left"
+              style={{
+                maxWidth: 'min(940px, 92vw)',
+                marginBottom: ganadoresCompactos ? '1rem' : '1.5rem',
+              }}
+            >
               {ganadoresDelDia.map((s, i) => (
                 <div
                   key={s.id}
-                  className="slide-in flex items-center gap-4 rounded-2xl px-5 py-4"
+                  className="slide-in relative isolate flex items-center gap-4 overflow-hidden rounded-2xl px-5 py-4"
                   style={{
-                    background: 'rgba(255,255,255,.05)',
-                    border: '1px solid rgba(255,255,255,.1)',
+                    background: 'linear-gradient(135deg, rgba(255,255,255,.02), rgba(255,255,255,.015))',
+                    border: '1px solid rgba(255,255,255,.14)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 18px 50px rgba(0,0,0,.18)',
+                    backdropFilter: 'blur(1px)',
                     animationDelay: `${i * 0.12}s`,
+                    marginBottom: ganadoresCompactos ? '.7rem' : '1rem',
+                    paddingTop: ganadoresCompactos ? '.8rem' : '1rem',
+                    paddingBottom: ganadoresCompactos ? '.8rem' : '1rem',
                   }}
                 >
-                  <div className="shrink-0 w-14 h-14">
+                  <div
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      background: 'linear-gradient(90deg, rgba(255,255,255,.035), rgba(255,255,255,0) 28%, rgba(255,255,255,.02) 100%)',
+                    }}
+                  />
+
+                  <div className="h-14 w-14 shrink-0">
                     <WinnerBadge index={i} />
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div className="relative z-10 min-w-0 flex-1">
                     <p
-                      className="text-white font-black truncate"
-                      style={{ fontSize: 'clamp(1.2rem, 2vw, 1.8rem)' }}
+                      className="truncate font-black text-white"
+                      style={{
+                        fontSize: ganadoresCompactos ? 'clamp(1.02rem, 1.45vw, 1.32rem)' : 'clamp(1.2rem, 2vw, 1.8rem)',
+                        textShadow: '0 2px 14px rgba(0,0,0,.55), 0 0 20px rgba(255,255,255,.08)',
+                      }}
                     >
                       {s.ganadorNombre}
                     </p>
-                    <p className="text-gray-500 text-sm">{s.hora}</p>
+                    <p
+                      className="text-sm text-gray-300"
+                      style={{ textShadow: '0 1px 8px rgba(0,0,0,.45)' }}
+                    >
+                      {s.hora}
+                    </p>
                   </div>
 
-                  <div className="text-right shrink-0">
+                  <div className="relative z-10 shrink-0 text-right">
                     <p
-                      className="text-yellow-300 font-black"
-                      style={{ fontSize: 'clamp(1.2rem, 2vw, 1.8rem)' }}
+                      className="font-black text-yellow-300"
+                      style={{
+                        fontSize: ganadoresCompactos ? 'clamp(1.02rem, 1.45vw, 1.32rem)' : 'clamp(1.2rem, 2vw, 1.8rem)',
+                        textShadow: '0 0 18px rgba(250,204,21,.2), 0 2px 14px rgba(0,0,0,.55)',
+                      }}
                     >
                       {formatPrize(s.valorPremio)}
                     </p>
                     <p
-                      className={`text-xs font-semibold mt-0.5 ${
+                      className={`mt-0.5 text-xs font-semibold ${
                         s.pagado ? 'text-green-400' : 'text-orange-400'
                       }`}
+                      style={{ textShadow: '0 1px 8px rgba(0,0,0,.45)' }}
                     >
                       {s.pagado ? 'Pagado' : 'Pendiente'}
                     </p>
@@ -181,21 +239,21 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
               ))}
             </div>
 
-            <p className="text-gray-600 text-sm">
+            <p className="text-sm text-gray-600">
               Los pagos se registran desde Panel Admin - Historial
             </p>
 
-            <div className="mt-6">
+            <div className="mt-4">
               <button
                 onClick={onVolverAdmin}
-                className="font-semibold text-white bg-white/10 hover:bg-white/15
-                  border border-white/15 px-8 py-4 rounded-2xl transition-all duration-200 active:scale-95"
+                className="rounded-2xl border border-white/15 bg-white/10 px-8 py-3 font-semibold text-white transition-all duration-200 active:scale-95 hover:bg-white/15"
               >
                 Volver al panel
               </button>
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   )
