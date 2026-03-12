@@ -1,16 +1,41 @@
-# React + Vite
+# Ruleta Sorteo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicacion de sorteo construida con React + Vite.
 
-Currently, two official plugins are available:
+## Desarrollo local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+## Build
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm run build
+```
 
-## Expanding the ESLint configuration
+## GitHub Pages
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+El proyecto queda preparado para desplegarse en GitHub Pages desde el repositorio `williamppmm/ruleta-sorteo`.
+
+Pasos en GitHub:
+
+1. Ve a `Settings > Pages`.
+2. En `Source`, selecciona `GitHub Actions`.
+3. Haz push a `main`.
+4. El workflow `.github/workflows/deploy-pages.yml` construira y publicara `dist/` automaticamente.
+
+URL esperada:
+
+`https://williamppmm.github.io/ruleta-sorteo/`
+
+## Persistencia de datos
+
+La app guarda los datos en `IndexedDB` del navegador del equipo que la usa.
+
+Eso significa:
+
+- cada equipo tiene sus propios datos locales;
+- GitHub Pages solo publica la app;
+- los datos no se comparten entre dispositivos.
