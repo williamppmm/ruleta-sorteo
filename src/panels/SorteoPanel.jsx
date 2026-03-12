@@ -382,8 +382,13 @@ function GanadorOverlay({ nombre, premio }) {
         position: 'fixed',
         inset: 0,
         zIndex: 999,
-        backgroundColor: '#04040f',
-        background: 'radial-gradient(ellipse 120% 80% at 50% 30%, rgba(255,140,0,.22), #04040f)',
+        backgroundColor: 'rgba(4, 6, 18, 0.94)',
+        background: `
+          radial-gradient(60% 55% at 24% 18%, rgba(59,130,246,.18), transparent 62%),
+          radial-gradient(58% 52% at 78% 20%, rgba(190,24,93,.15), transparent 60%),
+          radial-gradient(85% 72% at 50% 86%, rgba(15,23,42,.94), rgba(3,7,18,.985))
+        `,
+        backdropFilter: 'blur(10px)',
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: saliendo ? 0 : 1 }}
@@ -404,7 +409,7 @@ function GanadorOverlay({ nombre, premio }) {
         <motion.div
           className="absolute inset-0 blur-3xl pointer-events-none"
           style={{
-            background: 'radial-gradient(circle, rgba(255,201,71,.4) 0%, rgba(255,94,0,.28) 34%, rgba(255,94,0,0) 70%)',
+            background: 'radial-gradient(circle, rgba(59,130,246,.22) 0%, rgba(168,85,247,.14) 34%, rgba(15,23,42,0) 72%)',
             transform: 'scale(1.5)',
           }}
           initial={{ opacity: 0 }}
@@ -417,20 +422,20 @@ function GanadorOverlay({ nombre, premio }) {
           style={{
             fontSize: 'clamp(3.8rem, 13vw, 11rem)',
             fontFamily: 'Arial Black, Impact, sans-serif',
-            background: 'linear-gradient(180deg, #fffdf2 0%, #ffe9a8 18%, #ffc04d 42%, #ff7a00 68%, #ff4d00 100%)',
+            background: 'linear-gradient(180deg, #f8fbff 0%, #dbeafe 24%, #93c5fd 58%, #f9fafb 100%)',
             WebkitBackgroundClip: 'text',
             backgroundClip: 'text',
             color: 'transparent',
-            WebkitTextStroke: '2px rgba(255,244,204,.4)',
+            WebkitTextStroke: '1px rgba(191,219,254,.2)',
           }}
           initial={{ letterSpacing: '-0.35em', y: 0 }}
           animate={{
             letterSpacing: ['-0.35em', '0.04em', '0.02em'],
             y: [0, -8, 0],
             textShadow: [
-              '0 0 10px rgba(255,255,255,.2)',
-              '0 0 18px rgba(255,255,255,.8), 0 0 34px rgba(255,196,61,.9), 0 0 55px rgba(255,102,0,.9)',
-              '0 0 12px rgba(255,255,255,.7), 0 0 28px rgba(255,196,61,.8), 0 0 48px rgba(255,102,0,.8)',
+              '0 0 8px rgba(255,255,255,.12)',
+              '0 0 18px rgba(147,197,253,.42), 0 0 34px rgba(59,130,246,.22)',
+              '0 0 12px rgba(255,255,255,.18), 0 0 26px rgba(96,165,250,.2)',
             ],
           }}
           transition={{ duration: 1.15, ease: [0.16, 1, 0.3, 1] }}
@@ -442,9 +447,9 @@ function GanadorOverlay({ nombre, premio }) {
           className="mx-auto mt-4 h-2 rounded-full"
           style={{
             width: 'min(65vw, 780px)',
-            background: 'linear-gradient(90deg, rgba(255,128,0,0), rgba(255,235,160,.95), rgba(255,128,0,0))',
+            background: 'linear-gradient(90deg, rgba(96,165,250,0), rgba(191,219,254,.92), rgba(96,165,250,0))',
             filter: 'blur(1px)',
-            boxShadow: '0 0 18px rgba(255,196,61,.7)',
+            boxShadow: '0 0 18px rgba(96,165,250,.35)',
           }}
           initial={{ scaleX: 0, opacity: 0 }}
           animate={{ scaleX: [0, 1.1, 1], opacity: [0, 1, 0.85] }}
@@ -455,7 +460,7 @@ function GanadorOverlay({ nombre, premio }) {
           className="relative z-20 text-center font-black text-white leading-tight mt-6"
           style={{
             fontSize: 'clamp(2rem, 6vw, 5rem)',
-            textShadow: '0 0 30px rgba(255,200,80,.6), 0 4px 20px rgba(0,0,0,.8)',
+            textShadow: '0 0 28px rgba(59,130,246,.18), 0 4px 20px rgba(0,0,0,.72)',
           }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -468,12 +473,12 @@ function GanadorOverlay({ nombre, premio }) {
           className="relative z-20 text-center font-black mt-3"
           style={{
             fontSize: 'clamp(1.6rem, 3.5vw, 3rem)',
-            background: 'linear-gradient(180deg, #ffe9a8 0%, #ffc04d 100%)',
+            background: 'linear-gradient(180deg, #fde68a 0%, #facc15 100%)',
             WebkitBackgroundClip: 'text',
             backgroundClip: 'text',
             color: 'transparent',
             textShadow: 'none',
-            filter: 'drop-shadow(0 0 12px rgba(255,196,61,.7))',
+            filter: 'drop-shadow(0 0 10px rgba(250,204,21,.24))',
           }}
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
