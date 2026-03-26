@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore.jsx'
 import { normalizar } from '../utils/normalizar.js'
 
@@ -291,13 +291,12 @@ function SeccionParticipantes() {
     )
   }
 
-  async function registrar(e) {
-    e.preventDefault()
-    const n = nombre.trim()
-    if (!n) { setMsgError('Nombre obligatorio.'); return }
-    if (validarDuplicado(n)) { setMsgError('Nombre duplicado en el registro actual.'); return }
+  async function ejecutarRegistro(n) {
+    const nombre_trim = n.trim()
+    if (!nombre_trim) { setMsgError('Nombre obligatorio.'); return }
+    if (validarDuplicado(nombre_trim)) { setMsgError('Nombre duplicado en el registro actual.'); return }
 
-    await actions.addParticipante(n)
+    await actions.addParticipante(nombre_trim)
     setNombre('')
     setMsgError('')
     setSugerenciaActiva(-1)
@@ -306,24 +305,28 @@ function SeccionParticipantes() {
     inputRef.current?.focus()
   }
 
-  const handleInputKeyDown = useCallback((e) => {
-    if (sugerencias.length === 0) return
+  function registrar(e) {
+    e.preventDefault()
+    ejecutarRegistro(nombre)
+  }
 
+  function handleInputKeyDown(e) {
     if (e.key === 'ArrowDown') {
+      if (sugerencias.length === 0) return
       e.preventDefault()
       setSugerenciaActiva(prev => Math.min(prev + 1, sugerencias.length - 1))
     } else if (e.key === 'ArrowUp') {
+      if (sugerencias.length === 0) return
       e.preventDefault()
       setSugerenciaActiva(prev => Math.max(prev - 1, -1))
     } else if (e.key === 'Enter' && sugerenciaActiva >= 0) {
       e.preventDefault()
-      setNombre(sugerencias[sugerenciaActiva].nombre)
-      setSugerenciaActiva(-1)
+      ejecutarRegistro(sugerencias[sugerenciaActiva].nombre)
     } else if (e.key === 'Escape') {
       setSugerenciaActiva(-1)
       setNombre('')
     }
-  }, [sugerencias, sugerenciaActiva])
+  }
 
   async function guardarEdicion(p) {
     const n = editNombre.trim()
