@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useStore } from '../store/useStore.jsx'
 import { normalizar } from '../utils/normalizar.js'
 
@@ -267,6 +267,7 @@ function SeccionParticipantes() {
   const [confirmBorrar, setConfirmBorrar] = useState(null)
   const [pwdBorrar, setPwdBorrar]     = useState('')
   const [pwdError, setPwdError]       = useState(false)
+  const [sugerenciaActiva, setSugerenciaActiva] = useState(-1)
   const inputRef = useRef(null)
   const listRef  = useRef(null)
 
@@ -299,10 +300,30 @@ function SeccionParticipantes() {
     await actions.addParticipante(n)
     setNombre('')
     setMsgError('')
+    setSugerenciaActiva(-1)
     setMsgOk('Participante registrado.')
     setTimeout(() => setMsgOk(''), 2000)
     inputRef.current?.focus()
   }
+
+  const handleInputKeyDown = useCallback((e) => {
+    if (sugerencias.length === 0) return
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSugerenciaActiva(prev => Math.min(prev + 1, sugerencias.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSugerenciaActiva(prev => Math.max(prev - 1, -1))
+    } else if (e.key === 'Enter' && sugerenciaActiva >= 0) {
+      e.preventDefault()
+      setNombre(sugerencias[sugerenciaActiva].nombre)
+      setSugerenciaActiva(-1)
+    } else if (e.key === 'Escape') {
+      setSugerenciaActiva(-1)
+      setNombre('')
+    }
+  }, [sugerencias, sugerenciaActiva])
 
   async function guardarEdicion(p) {
     const n = editNombre.trim()
@@ -337,7 +358,8 @@ function SeccionParticipantes() {
               ref={inputRef}
               type="text"
               value={nombre}
-              onChange={e => { setNombre(e.target.value); setMsgError('') }}
+              onChange={e => { setNombre(e.target.value); setMsgError(''); setSugerenciaActiva(-1) }}
+              onKeyDown={handleInputKeyDown}
               placeholder="Nombre del participante"
               disabled={cerrado}
               autoComplete="off"
@@ -359,14 +381,15 @@ function SeccionParticipantes() {
           {sugerencias.length > 0 && !cerrado && (
             <ul className="absolute top-full left-0 right-16 z-20 mt-1
               bg-gray-800 border border-gray-600 rounded-xl overflow-hidden shadow-xl">
-              {sugerencias.map(c => (
+              {sugerencias.map((c, idx) => (
                 <li key={c.key}>
                   <button
                     type="button"
-                    onMouseDown={() => { setNombre(c.nombre) }}
-                    className="w-full px-4 py-2.5 hover:bg-gray-700 transition text-left"
+                    onMouseDown={() => { setNombre(c.nombre); setSugerenciaActiva(-1) }}
+                    className={`w-full px-4 py-2.5 transition text-left
+                      ${sugerenciaActiva === idx ? 'bg-yellow-500/20 text-yellow-200' : 'hover:bg-gray-700 text-white'}`}
                   >
-                    <span className="text-white">{c.nombre}</span>
+                    {c.nombre}
                   </button>
                 </li>
               ))}
