@@ -139,7 +139,7 @@ export default function SorteoPanel({ onGanador }) {
 
         if (progress < 0.985) {
           if (!dingDisparado) {
-          beep(500 + progress * 650, 0.025, 0.03 + progress * 0.015)
+          beep(500 + progress * 650, 0.025, 0.25 + progress * 0.1)
           }
           animRef.current = requestAnimationFrame(tick)
           return
