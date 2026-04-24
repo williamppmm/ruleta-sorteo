@@ -363,21 +363,26 @@ export function StoreProvider({ children }) {
 
   /**
    * Inicia una nueva sesión de sorteo tras haber corrido uno previo.
-   * - Limpia la lista de inscritos (cada sorteo empieza con el panel vacio).
-   * - Resetea el runtime (rondaActual, idsRondasDelDia, registroCerrado).
-   * - Conserva titulo, horaInicio, totalRondas y premiosPorRonda: esos
-   *   valores son del "programa" semanal y no cambian entre eventos.
    *
-   * La persistencia entre recargas durante la semana de registro ya la
-   * garantiza la capa de persistencia (IndexedDB, archivo JSON o
-   * FileSystemDirectoryHandle segun el backend activo).
+   * Resetea toda la configuración del evento y los inscritos para empezar
+   * en blanco. Cada sorteo es un evento distinto (titulo nuevo, a veces
+   * diferente numero de rondas o premios), asi que el operador define
+   * desde cero en cada programacion.
+   *
+   * Lo unico que NO se toca:
+   *   - Historial de sorteos (para ver ganadores pasados y registrar pagos pendientes).
+   *   - Base de clientes con estrellas (la calificacion es permanente).
    */
   const nuevaSesion = useCallback(async () => {
     await clear(STORES.PARTICIPANTES);
     const cambios = {
-      rondaActual: 0,
+      titulo:          '',
+      horaInicio:      '',
+      totalRondas:     1,
+      premiosPorRonda: [''],
+      rondaActual:     0,
       registroCerrado: false,
-      fechaCierre: null,
+      fechaCierre:     null,
       idsRondasDelDia: [],
     };
     await saveConfig({ ...state.config, ...cambios });
