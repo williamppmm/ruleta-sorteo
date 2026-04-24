@@ -274,13 +274,27 @@ function SeccionParticipantes() {
   const inputRef = useRef(null)
   const listRef  = useRef(null)
 
-  // Autocompletado desde base de clientes
+  // Autocompletado desde base de clientes.
+  // Ordena por cercania: coincidencia exacta -> prefijo -> subcadena; dentro
+  // de cada nivel, orden alfabetico. La primera sugerencia siempre es la mas
+  // probable, que es la que Enter/TAB autocompletan por defecto.
   const sugerencias = useMemo(() => {
     const q = normalizar(nombre)
     if (!q) return []
     return state.clientes
-      .filter(c => normalizar(c.nombre).includes(q))
+      .map(c => {
+        const norm = normalizar(c.nombre)
+        if (!norm.includes(q)) return null
+        let rank = 2                         // subcadena en cualquier posicion
+        if (norm === q) rank = 0             // coincidencia exacta
+        else if (norm.startsWith(q)) rank = 1 // prefijo
+        return { cliente: c, rank }
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.rank - b.rank
+        || a.cliente.nombre.localeCompare(b.cliente.nombre))
       .slice(0, 8)
+      .map(x => x.cliente)
   }, [nombre, state.clientes])
 
   useEffect(() => {
@@ -290,7 +304,16 @@ function SeccionParticipantes() {
   async function ejecutarRegistro(n) {
     const nombre_trim = n.trim()
     if (!nombre_trim) { setMsgError('Nombre obligatorio.'); return }
-    if (validarDuplicado(nombre_trim, state.participantes)) { setMsgError('Nombre duplicado en el registro actual.'); return }
+
+    if (validarDuplicado(nombre_trim, state.participantes)) {
+      setMsgError(`${nombre_trim} ya está registrado.`)
+      setMsgOk('')
+      setNombre('')
+      setSugerenciaActiva(-1)
+      setTimeout(() => setMsgError(''), 2500)
+      inputRef.current?.focus()
+      return
+    }
 
     await actions.addParticipante(nombre_trim)
     setNombre('')
@@ -303,7 +326,15 @@ function SeccionParticipantes() {
 
   function registrar(e) {
     e.preventDefault()
-    ejecutarRegistro(nombre)
+    // Si hay sugerencias visibles, priorizar la más cercana (primera de la lista)
+    // o la que el usuario haya resaltado con flechas. Evita registrar prefijos
+    // como "Pao" cuando existe "Paola" en la base.
+    if (sugerencias.length > 0) {
+      const idx = sugerenciaActiva >= 0 ? sugerenciaActiva : 0
+      ejecutarRegistro(sugerencias[idx].nombre)
+    } else {
+      ejecutarRegistro(nombre)
+    }
   }
 
   function handleInputKeyDown(e) {
@@ -315,13 +346,17 @@ function SeccionParticipantes() {
       if (sugerencias.length === 0) return
       e.preventDefault()
       setSugerenciaActiva(prev => Math.max(prev - 1, -1))
-    } else if (e.key === 'Enter' && sugerenciaActiva >= 0) {
+    } else if (e.key === 'Tab' && sugerencias.length > 0) {
+      // TAB completa con la sugerencia más cercana sin salir del input.
       e.preventDefault()
-      ejecutarRegistro(sugerencias[sugerenciaActiva].nombre)
+      const idx = sugerenciaActiva >= 0 ? sugerenciaActiva : 0
+      ejecutarRegistro(sugerencias[idx].nombre)
     } else if (e.key === 'Escape') {
       setSugerenciaActiva(-1)
       setNombre('')
     }
+    // Enter se deja al submit del formulario (ver `registrar`), que ya aplica
+    // la misma logica de priorizar la sugerencia mas cercana.
   }
 
   async function guardarEdicion(p) {
@@ -380,18 +415,30 @@ function SeccionParticipantes() {
           {sugerencias.length > 0 && !cerrado && (
             <ul className="absolute top-full left-0 right-16 z-20 mt-1
               bg-gray-800 border border-gray-600 rounded-xl overflow-hidden shadow-xl">
-              {sugerencias.map((c, idx) => (
-                <li key={c.key}>
-                  <button
-                    type="button"
-                    onMouseDown={() => { setNombre(c.nombre); setSugerenciaActiva(-1) }}
-                    className={`w-full px-4 py-2.5 transition text-left
-                      ${sugerenciaActiva === idx ? 'bg-yellow-500/20 text-yellow-200' : 'hover:bg-gray-700 text-white'}`}
-                  >
-                    {c.nombre}
-                  </button>
-                </li>
-              ))}
+              {sugerencias.map((c, idx) => {
+                // La primera sugerencia se resalta por defecto: es la que
+                // Enter/TAB autocompletan si el usuario no ha navegado con flechas.
+                const seleccionExplicita = sugerenciaActiva === idx
+                const seleccionPorDefecto = sugerenciaActiva === -1 && idx === 0
+                const destacada = seleccionExplicita || seleccionPorDefecto
+                return (
+                  <li key={c.key}>
+                    <button
+                      type="button"
+                      onMouseDown={() => { setNombre(c.nombre); setSugerenciaActiva(-1) }}
+                      className={`w-full px-4 py-2.5 transition text-left flex items-center justify-between gap-3
+                        ${destacada ? 'bg-yellow-500/20 text-yellow-200' : 'hover:bg-gray-700 text-white'}`}
+                    >
+                      <span>{c.nombre}</span>
+                      {destacada && (
+                        <span className="text-[10px] uppercase tracking-wider text-yellow-300/70 font-semibold">
+                          Enter / Tab
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
