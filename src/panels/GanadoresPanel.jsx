@@ -8,14 +8,34 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
   const cfg = state.config
 
   const rondasCompletadas = cfg.idsRondasDelDia?.length ?? 0
-  const esUltimaRonda = rondasCompletadas >= cfg.totalRondas
+  // Si la sesion actual no tiene ids pero la pasada si, estamos viendo los
+  // ganadores del evento anterior mientras se configura el proximo.
+  const viendoSesionPasada = rondasCompletadas === 0
+    && (cfg.idsSesionPasada?.length ?? 0) > 0
+  const idsMostrar = viendoSesionPasada
+    ? cfg.idsSesionPasada
+    : cfg.idsRondasDelDia
+  const terminadaActual = rondasCompletadas >= cfg.totalRondas && rondasCompletadas > 0
+  // Vista "sesion completa": cuando la sesion actual termino o cuando estamos
+  // viendo la pasada. En ambos casos se muestra el listado completo sin
+  // boton "Siguiente sorteo" (en la pasada no hay siguiente; en la actual
+  // terminada tampoco).
+  const mostrandoSesionCompleta = terminadaActual || viendoSesionPasada
 
   const ganadoresDelDia = state.sorteos
-    .filter(s => cfg.idsRondasDelDia?.includes(s.id))
+    .filter(s => idsMostrar?.includes(s.id))
     .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
-    .slice(0, cfg.totalRondas)
 
   const ganadoresCompactos = ganadoresDelDia.length >= 3
+  // Titulo y fecha para la vista "sesion completa": si estamos viendo la
+  // sesion pasada, tomamos el titulo/fecha del primer ganador (la config
+  // actual ya fue limpiada).
+  const tituloVista = viendoSesionPasada
+    ? (ganadoresDelDia[0]?.titulo || 'Sorteo')
+    : (cfg.titulo || 'Sorteo en Vivo')
+  const fechaVista = viendoSesionPasada
+    ? (ganadoresDelDia[0]?.fecha || new Date().toISOString())
+    : new Date().toISOString()
 
   async function handleSiguienteRonda() {
     await actions.siguienteRonda()
@@ -33,7 +53,9 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
 
   return (
     <div className="aurora-bg h-screen overflow-hidden">
-      {esUltimaRonda && <ConfettiScreen />}
+      {/* Confetti solo cuando la sesion actual acaba de terminar, no al
+          revisar la pasada (esos ganadores ya no son novedad). */}
+      {terminadaActual && <ConfettiScreen />}
 
       <div className="fixed top-4 left-4 z-30">
         <button
@@ -54,8 +76,8 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
           justifyContent: 'center',
           alignItems: 'flex-start',
           overflow: 'hidden',
-          paddingTop: esUltimaRonda ? '5.5rem' : '2.5rem',
-          paddingBottom: esUltimaRonda ? '1.25rem' : '2.5rem',
+          paddingTop: mostrandoSesionCompleta ? '5.5rem' : '2.5rem',
+          paddingBottom: mostrandoSesionCompleta ? '1.25rem' : '2.5rem',
           paddingLeft: '1.5rem',
           paddingRight: '1.5rem',
         }}
@@ -63,10 +85,10 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
         <div
           className="w-full text-center"
           style={{
-            maxWidth: esUltimaRonda ? 'min(980px, 96vw)' : 'min(800px, 96vw)',
+            maxWidth: mostrandoSesionCompleta ? 'min(980px, 96vw)' : 'min(800px, 96vw)',
           }}
         >
-        {!esUltimaRonda && ultimoSorteo && (
+        {!mostrandoSesionCompleta && ultimoSorteo && (
           <>
             <div className="mb-5 flex justify-center">
               <WinnerBadge index={rondasCompletadas - 1} />
@@ -137,7 +159,7 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
           </>
         )}
 
-        {esUltimaRonda && (
+        {mostrandoSesionCompleta && (
           <>
             <p
               style={{
@@ -162,7 +184,7 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
                 marginBottom: ganadoresCompactos ? '1rem' : '1.8rem',
               }}
             >
-              {cfg.titulo || 'Sorteo en Vivo'} - {fmtFecha(new Date().toISOString())}
+              {tituloVista} - {fmtFecha(fechaVista)}
             </p>
 
             <div

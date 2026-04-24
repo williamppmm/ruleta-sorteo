@@ -134,6 +134,7 @@ export const CONFIG_DEFAULT = {
   registroCerrado:  false,
   fechaCierre:      null,
   idsRondasDelDia:  [],
+  idsSesionPasada:  [],
 };
 
 export async function getConfig() {

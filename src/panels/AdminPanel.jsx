@@ -14,7 +14,11 @@ const PASSWORD_ADMIN = '1980'
 export default function AdminPanel({ onIrAlSorteo, onVerGanadores }) {
   const { state, derived } = useStore()
   const [tab, setTab] = useState('config')
+  // El boton "Ver ganadores" sigue visible tras programar una nueva sesion
+  // para poder consultar y pagar a los ganadores del evento anterior
+  // mientras se configura el proximo.
   const hayGanadoresSesion = (state.config.idsRondasDelDia?.length ?? 0) > 0
+    || (state.config.idsSesionPasada?.length ?? 0) > 0
   const faltantesMinimos = participantesFaltantes(state.participantes.length)
   const puedeIr = calcPuedeIrAlSorteo(
     state.config, derived.sorteoTerminado,

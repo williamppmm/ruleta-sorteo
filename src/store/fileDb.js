@@ -122,6 +122,7 @@ export const CONFIG_DEFAULT = {
   registroCerrado:  false,
   fechaCierre:      null,
   idsRondasDelDia:  [],
+  idsSesionPasada:  [],
 }
 
 /** Lee la config y la fusiona con los valores por defecto. */

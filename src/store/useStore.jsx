@@ -76,6 +76,7 @@ const ESTADO_INICIAL = {
     registroCerrado: false,
     fechaCierre: null,
     idsRondasDelDia: [],
+    idsSesionPasada: [],
   },
   /**
    * Modo de persistencia activo (determinado en tiempo de ejecucion).
@@ -369,12 +370,23 @@ export function StoreProvider({ children }) {
    * diferente numero de rondas o premios), asi que el operador define
    * desde cero en cada programacion.
    *
+   * Antes de limpiar idsRondasDelDia, hacemos un snapshot en idsSesionPasada
+   * para que GanadoresPanel pueda seguir mostrando los ganadores del evento
+   * anterior mientras se configura el proximo (y el operador pueda registrar
+   * pagos pendientes desde la pestana Historial).
+   *
    * Lo unico que NO se toca:
    *   - Historial de sorteos (para ver ganadores pasados y registrar pagos pendientes).
    *   - Base de clientes con estrellas (la calificacion es permanente).
    */
   const nuevaSesion = useCallback(async () => {
     await clear(STORES.PARTICIPANTES);
+    const idsActuales = state.config.idsRondasDelDia ?? [];
+    const idsAntes    = state.config.idsSesionPasada ?? [];
+    // Si se ejecuto al menos un sorteo en la sesion actual, esos ids se
+    // convierten en la sesion pasada. Si la sesion actual no tuvo sorteos
+    // (programar dos veces seguidas), preservamos la sesion pasada previa.
+    const idsSesionPasada = idsActuales.length > 0 ? [...idsActuales] : idsAntes;
     const cambios = {
       titulo:          '',
       horaInicio:      '',
@@ -384,6 +396,7 @@ export function StoreProvider({ children }) {
       registroCerrado: false,
       fechaCierre:     null,
       idsRondasDelDia: [],
+      idsSesionPasada,
     };
     await saveConfig({ ...state.config, ...cambios });
     dispatch({ type: 'CLEAR_PARTICIPANTES' });

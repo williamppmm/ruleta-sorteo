@@ -142,6 +142,10 @@ export const CONFIG_DEFAULT = {
   registroCerrado: false,
   fechaCierre: null,
   idsRondasDelDia: [],
+  // Snapshot de la sesion anterior, utilizado por GanadoresPanel para
+  // seguir mostrando los ganadores pasados mientras se configura la
+  // proxima sesion (se setea desde nuevaSesion).
+  idsSesionPasada: [],
 };
 
 /** Lee la config guardada y la fusiona con los valores por defecto. */
