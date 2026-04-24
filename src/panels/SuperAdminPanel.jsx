@@ -5,6 +5,18 @@ import { normalizar } from '../utils/normalizar.js'
 import { isElectron, desktopApi } from '../services/desktopApi.js'
 import { fmtFechaCorta, fmtHora } from '../utils/helpers.js'
 import { parsearTxt, planificarImportacion } from '../domain/clientes.js'
+import {
+  activarBackendCarpeta,
+  desactivarBackendCarpeta,
+  inspeccionarCarpeta,
+  escribirInicialEnCarpeta,
+} from '../store/persistence.js'
+import {
+  saveHandle,
+  clearHandle,
+  verificarPermiso,
+  soportaFileSystemAccess,
+} from '../store/handleStore.js'
 
 const TABS = { CLIENTES: 'clientes', HISTORIAL: 'historial', IMPORTAR: 'importar', DATOS: 'datos', RESPALDO: 'respaldo' }
 const PASSWORD_SUPERADMIN = '1980'
@@ -165,8 +177,8 @@ export default function SuperAdminPanel() {
           { id: TABS.CLIENTES,  label: 'Base de clientes' },
           { id: TABS.HISTORIAL, label: clienteHistorial ? `Historial — ${clienteHistorial.nombre}` : 'Historial' },
           { id: TABS.IMPORTAR,  label: 'Importar .txt' },
-          ...(isElectron ? [{ id: TABS.DATOS,     label: 'Datos' }]    : []),
-          { id: TABS.RESPALDO,  label: 'Respaldo' },
+          { id: TABS.DATOS,    label: 'Datos' },
+          { id: TABS.RESPALDO, label: 'Respaldo' },
         ].map(t => (
           <button
             key={t.id}
@@ -182,7 +194,7 @@ export default function SuperAdminPanel() {
       </div>
 
       {/* ── TAB: DATOS ── */}
-      {tab === TABS.DATOS && isElectron && <SeccionDatos />}
+      {tab === TABS.DATOS && <SeccionDatos />}
 
       {/* ── TAB: RESPALDO ── */}
       {tab === TABS.RESPALDO && (
@@ -487,14 +499,21 @@ export default function SuperAdminPanel() {
 }
 
 // ─────────────────────────────────────────────
-// Sección Datos (solo Electron)
+// Sección Datos
+// Electron: gestiona la ruta de la carpeta de datos local del .exe.
+// Web: vincula una carpeta local del usuario via File System Access API
+// (tipicamente una carpeta de Dropbox sincronizada al cloud).
 // ─────────────────────────────────────────────
 function SeccionDatos() {
-  const [dataPath, setDataPath]   = useState(null)   // null = cargando
-  const [estado, setEstado]       = useState(null)   // { ok, mensaje } | null
-  const [ocupado, setOcupado]     = useState(false)
+  if (isElectron) return <SeccionDatosElectron />
+  return <SeccionDatosWeb />
+}
 
-  // Cargar ruta actual al montar
+function SeccionDatosElectron() {
+  const [dataPath, setDataPath] = useState(null)   // null = cargando
+  const [estado, setEstado]     = useState(null)   // { ok, mensaje } | null
+  const [ocupado, setOcupado]   = useState(false)
+
   useEffect(() => {
     desktopApi.getDataPath().then(p => setDataPath(p))
   }, [])
@@ -502,7 +521,7 @@ function SeccionDatos() {
   async function seleccionarCarpeta() {
     setEstado(null)
     const nuevaRuta = await desktopApi.selectDataFolder()
-    if (!nuevaRuta) return   // usuario canceló
+    if (!nuevaRuta) return
 
     setOcupado(true)
     const resultado = await desktopApi.changeDataPath(nuevaRuta)
@@ -522,8 +541,6 @@ function SeccionDatos() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-
-      {/* Ruta actual */}
       <div className="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
         <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">
           Carpeta de datos activa
@@ -539,7 +556,6 @@ function SeccionDatos() {
         </p>
       </div>
 
-      {/* Acciones */}
       <div className="flex flex-wrap gap-3">
         <button
           onClick={seleccionarCarpeta}
@@ -549,7 +565,6 @@ function SeccionDatos() {
         >
           {ocupado ? 'Migrando…' : 'Seleccionar carpeta de datos'}
         </button>
-
         <button
           onClick={abrirCarpeta}
           className="bg-gray-700 hover:bg-gray-600 text-white font-semibold
@@ -559,12 +574,241 @@ function SeccionDatos() {
         </button>
       </div>
 
-      {/* Resultado */}
       {estado && (
         <div className={`rounded-xl border p-4 text-sm font-medium ${
-          estado.ok
-            ? 'border-green-700 bg-green-950/40 text-green-300'
-            : 'border-red-700 bg-red-950/40 text-red-300'
+          estado.ok ? 'border-green-700 bg-green-950/40 text-green-300'
+                    : 'border-red-700 bg-red-950/40 text-red-300'
+        }`}>
+          {estado.ok ? '✓ ' : '✕ '}{estado.mensaje}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-gray-700 bg-gray-900/40 p-4 text-xs text-gray-500 space-y-1">
+        <p>Al cambiar la carpeta, los archivos existentes se copian automáticamente a la nueva ubicación.</p>
+        <p>Los archivos originales no se eliminan de la carpeta anterior.</p>
+        <p>Si la carpeta destino no existe, se crea automáticamente.</p>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
+// Sección Datos — variante Web (File System Access API)
+// Vincula una carpeta local del usuario para que los datos vivan en archivos
+// JSON que Dropbox desktop puede sincronizar con el super admin.
+// ─────────────────────────────────────────────
+function SeccionDatosWeb() {
+  const { state, actions } = useStore()
+  const modo = state.modoPersistencia
+  const [ocupado, setOcupado] = useState(false)
+  const [estado, setEstado]   = useState(null)
+
+  const vinculada = modo?.tipo === 'carpeta'
+  const pendiente = modo?.tipo === 'idb' && modo?.handlePendiente
+
+  if (!soportaFileSystemAccess) {
+    return (
+      <div className="max-w-2xl space-y-4">
+        <div className="rounded-2xl border border-yellow-900 bg-yellow-950/30 p-5 text-sm text-yellow-200">
+          <p className="font-semibold mb-1">Tu navegador no soporta vincular carpetas.</p>
+          <p className="text-yellow-200/80">
+            Para usar una carpeta compartida de Dropbox como fuente de datos,
+            abre esta aplicación en <strong>Chrome</strong> o <strong>Edge</strong> actualizados.
+            Firefox y Safari aún no soportan la API necesaria.
+          </p>
+        </div>
+        <div className="rounded-xl border border-gray-700 bg-gray-900/40 p-4 text-xs text-gray-500">
+          Sin carpeta vinculada, los datos se guardan en <code className="text-gray-400">IndexedDB</code> del navegador
+          y no se comparten con otros equipos.
+        </div>
+      </div>
+    )
+  }
+
+  async function conectarCarpeta() {
+    setEstado(null)
+    setOcupado(true)
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
+
+      // Inspeccionar la carpeta sin activar aun el backend.
+      const datosCarpeta = await inspeccionarCarpeta(handle)
+      const carpetaVacia = datosCarpeta.clientes.length === 0
+        && datosCarpeta.sorteos.length === 0
+        && datosCarpeta.participantes.length === 0
+
+      const localVacio = state.clientes.length === 0
+        && state.sorteos.length === 0
+        && state.participantes.length === 0
+
+      if (!carpetaVacia && !localVacio) {
+        const ok = window.confirm(
+          `La carpeta seleccionada ya contiene datos (${datosCarpeta.clientes.length} clientes, ${datosCarpeta.sorteos.length} sorteos).\n\n`
+          + `Este equipo también tiene datos en el navegador (${state.clientes.length} clientes, ${state.sorteos.length} sorteos).\n\n`
+          + `Al conectar, se usarán los datos de la CARPETA y los del navegador se ignorarán.\n\n`
+          + `¿Continuar?`
+        )
+        if (!ok) { setOcupado(false); return }
+      } else if (carpetaVacia && !localVacio) {
+        const ok = window.confirm(
+          `La carpeta seleccionada está vacía.\n\n`
+          + `¿Copiar los datos actuales del navegador (${state.clientes.length} clientes, ${state.sorteos.length} sorteos) a la carpeta?`
+        )
+        if (!ok) { setOcupado(false); return }
+        await escribirInicialEnCarpeta(handle, {
+          clientes:      state.clientes,
+          participantes: state.participantes,
+          sorteos:       state.sorteos,
+          config:        state.config,
+        })
+      }
+      // Si la carpeta tiene datos y el navegador no, o ambos vacios: simplemente conectar.
+
+      await saveHandle(handle)
+      // Recargamos la pagina para que inicializarBackend detecte el handle,
+      // active fsHandleDb y cargue el estado desde la carpeta.
+      window.location.reload()
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        setOcupado(false)
+        return  // usuario cancelo el picker
+      }
+      setEstado({ ok: false, mensaje: `Error al conectar carpeta: ${err?.message || err}` })
+      setOcupado(false)
+    }
+  }
+
+  async function reautorizar() {
+    setEstado(null)
+    setOcupado(true)
+    try {
+      const ok = await verificarPermiso(modo.handlePendiente, true)
+      if (!ok) {
+        setEstado({ ok: false, mensaje: 'No se obtuvo permiso sobre la carpeta.' })
+        setOcupado(false)
+        return
+      }
+      activarBackendCarpeta(modo.handlePendiente)
+      actions.setModoPersistencia({ tipo: 'carpeta', handle: modo.handlePendiente, nombre: modo.handlePendiente.name })
+      window.location.reload()
+    } catch (err) {
+      setEstado({ ok: false, mensaje: `Error al re-autorizar: ${err?.message || err}` })
+      setOcupado(false)
+    }
+  }
+
+  async function desconectar() {
+    const ok = window.confirm(
+      'Al desvincular la carpeta, este equipo dejará de leer y escribir en ella.\n\n'
+      + 'Los archivos JSON de la carpeta NO se borran — siguen ahí para otros equipos o para tu PC.\n\n'
+      + 'Los datos actuales del navegador (IndexedDB) se mantienen separados.\n\n'
+      + '¿Continuar?'
+    )
+    if (!ok) return
+    setOcupado(true)
+    try {
+      await clearHandle()
+      desactivarBackendCarpeta()
+      actions.setModoPersistencia({ tipo: 'idb' })
+      window.location.reload()
+    } catch (err) {
+      setEstado({ ok: false, mensaje: `Error al desvincular: ${err?.message || err}` })
+      setOcupado(false)
+    }
+  }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+
+      {/* Estado actual */}
+      <div className="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
+        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">
+          Fuente de datos actual
+        </p>
+        {vinculada ? (
+          <>
+            <p className="text-sm text-green-300 font-semibold flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-green-400" />
+              Carpeta vinculada: <code className="text-yellow-300">{modo.nombre}</code>
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              Los JSON se leen y se escriben directamente en esa carpeta.
+              Dropbox (si está instalado y la carpeta está dentro de su ruta sincronizada)
+              la replica automáticamente al cloud.
+            </p>
+          </>
+        ) : pendiente ? (
+          <>
+            <p className="text-sm text-orange-300 font-semibold flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-orange-400" />
+              Carpeta <code className="text-yellow-300">{modo.nombre}</code> pendiente de autorización
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              El navegador olvidó el permiso y hay que re-autorizar con un clic.
+              Mientras tanto, se está usando IndexedDB local.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-gray-300 font-semibold flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-gray-500" />
+              Sin carpeta vinculada — usando IndexedDB del navegador
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              Los datos viven solo en este navegador. Para compartirlos con el super admin,
+              vincula la carpeta de Dropbox compartida para este equipo.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* Acciones */}
+      <div className="flex flex-wrap gap-3">
+        {vinculada ? (
+          <button
+            onClick={desconectar}
+            disabled={ocupado}
+            className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white
+              font-semibold px-5 py-2.5 rounded-xl transition"
+          >
+            Desvincular carpeta
+          </button>
+        ) : pendiente ? (
+          <>
+            <button
+              onClick={reautorizar}
+              disabled={ocupado}
+              className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white
+                font-bold px-5 py-2.5 rounded-xl transition"
+            >
+              {ocupado ? 'Autorizando…' : 'Re-autorizar carpeta'}
+            </button>
+            <button
+              onClick={desconectar}
+              disabled={ocupado}
+              className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white
+                font-semibold px-5 py-2.5 rounded-xl transition"
+            >
+              Olvidar esta carpeta
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={conectarCarpeta}
+            disabled={ocupado}
+            className="bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black
+              font-bold px-5 py-2.5 rounded-xl transition"
+          >
+            {ocupado ? 'Conectando…' : 'Conectar carpeta compartida (Dropbox)'}
+          </button>
+        )}
+      </div>
+
+      {/* Resultado de ultima accion */}
+      {estado && (
+        <div className={`rounded-xl border p-4 text-sm font-medium ${
+          estado.ok ? 'border-green-700 bg-green-950/40 text-green-300'
+                    : 'border-red-700 bg-red-950/40 text-red-300'
         }`}>
           {estado.ok ? '✓ ' : '✕ '}{estado.mensaje}
         </div>
@@ -572,9 +816,9 @@ function SeccionDatos() {
 
       {/* Nota informativa */}
       <div className="rounded-xl border border-gray-700 bg-gray-900/40 p-4 text-xs text-gray-500 space-y-1">
-        <p>Al cambiar la carpeta, los archivos existentes se copian automáticamente a la nueva ubicación.</p>
-        <p>Los archivos originales no se eliminan de la carpeta anterior.</p>
-        <p>Si la carpeta destino no existe, se crea automáticamente.</p>
+        <p>La vinculación se guarda en este navegador — no necesitas repetirla en cada sesión.</p>
+        <p>Si la carpeta se mueve o se renombra, hay que vincularla de nuevo.</p>
+        <p>Dropbox, OneDrive o cualquier servicio que sincronice carpetas locales sirve — la app solo ve la carpeta del sistema de archivos.</p>
       </div>
 
     </div>

@@ -11,6 +11,7 @@ import { createContext, useContext, useReducer, useEffect, useCallback } from 'r
 import {
   STORES, CONFIG_DEFAULT, cargarEstadoInicial, saveConfig,
   put, add, remove, clear, writeAllRecords,
+  inicializarBackend,
 } from './persistence.js';
 import { normalizar } from '../utils/normalizar.js';
 
@@ -76,6 +77,12 @@ const ESTADO_INICIAL = {
     fechaCierre: null,
     idsRondasDelDia: [],
   },
+  /**
+   * Modo de persistencia activo (determinado en tiempo de ejecucion).
+   * Valores posibles: { tipo: 'electron' | 'carpeta' | 'idb', nombre?, handlePendiente? }
+   * La UI usa esto para mostrar "Conectar carpeta" o re-autorizar.
+   */
+  modoPersistencia: { tipo: 'idb' },
   cargando: true,
   error: null,
 };
@@ -180,6 +187,9 @@ function reducer(state, action) {
         config:        action.payload.config,
       };
 
+    case 'SET_MODO_PERSISTENCIA':
+      return { ...state, modoPersistencia: action.payload };
+
     default:
       return state;
   }
@@ -196,15 +206,24 @@ const StoreContext = createContext(null);
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, ESTADO_INICIAL);
 
-  // Carga inicial + migración de identidad de clientes
+  // Carga inicial:
+  //   1. Resuelve el backend de persistencia (Electron / carpeta / IndexedDB).
+  //   2. Carga los 4 stores con ese backend.
+  //   3. Aplica migracion de identidad (backfill clienteId) si hace falta.
   useEffect(() => {
-    cargarEstadoInicial()
-      .then(async (datos) => {
-        const migrado = await migrarIdentidad(datos.clientes, datos.sorteos);
-        return { ...datos, ...migrado };
-      })
-      .then(datos => dispatch({ type: 'CARGAR_TODO', payload: datos }))
-      .catch(err  => dispatch({ type: 'ERROR_CARGA', payload: err.message }));
+    (async () => {
+      try {
+        const modoPersistencia = await inicializarBackend();
+        const datos            = await cargarEstadoInicial();
+        const migrado          = await migrarIdentidad(datos.clientes, datos.sorteos);
+        dispatch({
+          type: 'CARGAR_TODO',
+          payload: { ...datos, ...migrado, modoPersistencia },
+        });
+      } catch (err) {
+        dispatch({ type: 'ERROR_CARGA', payload: err.message });
+      }
+    })();
   }, []);
 
   // ── Acciones ─────────────────────────────────
@@ -463,6 +482,11 @@ export function StoreProvider({ children }) {
     return sorteoCompleto;
   }, [state.participantes, state.clientes, state.config]);
 
+  /** Actualiza el modo de persistencia en el estado (tras conectar/desconectar carpeta). */
+  const setModoPersistencia = useCallback((modo) => {
+    dispatch({ type: 'SET_MODO_PERSISTENCIA', payload: modo });
+  }, []);
+
   /** Registra el pago de un premio. */
   const registrarPago = useCallback(async (idSorteo) => {
     const fechaPago = new Date().toISOString();
@@ -506,6 +530,7 @@ export function StoreProvider({ children }) {
         deleteCliente,
         registrarGanador,
         registrarPago,
+        setModoPersistencia,
       },
       derived: {
         ganadoresDelDia,
