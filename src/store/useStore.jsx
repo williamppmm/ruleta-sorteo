@@ -244,14 +244,44 @@ export function StoreProvider({ children }) {
     }
   }, [state.clientes]);
 
+  /**
+   * Determina si un cliente puede eliminarse sin riesgo:
+   * fue creado por una registracion concreta, tiene 0 estrellas y jamas gano.
+   * Se usa al borrar o renombrar un participante para no dejar clientes huerfanos.
+   */
+  const clienteEsDescartableDesdeRegistro = useCallback((cliente, horaRegistroParticipante) => {
+    if (!cliente) return false;
+    if (cliente.fechaRegistro !== horaRegistroParticipante) return false;
+    if ((cliente.estrellas ?? 0) !== 0) return false;
+    const gano = state.sorteos.some(s =>
+      s.ganadorKey === cliente.key
+      || (cliente.clienteId && s.ganadorClienteId === cliente.clienteId)
+    );
+    return !gano;
+  }, [state.sorteos]);
+
   /** Edita el nombre de un participante (y vincula con cliente si aplica). */
   const updateParticipante = useCallback(async (id, nuevoNombre) => {
+    const participanteAnterior = state.participantes.find(p => p.id === id);
+    const horaRegistro = participanteAnterior?.horaRegistro;
     const key = normalizar(nuevoNombre);
-    const horaRegistro = state.participantes.find(p => p.id === id)?.horaRegistro;
     const actualizado = { id, nombre: nuevoNombre, horaRegistro };
 
     await put(STORES.PARTICIPANTES, actualizado);
     dispatch({ type: 'UPDATE_PARTICIPANTE', payload: actualizado });
+
+    // Si el nombre anterior dejo un cliente huerfano (creado por esta misma
+    // registracion, sin estrellas y sin historial de premios), limpiarlo.
+    if (participanteAnterior) {
+      const keyAnterior = normalizar(participanteAnterior.nombre);
+      if (keyAnterior !== key) {
+        const clienteAnterior = state.clientes.find(c => c.key === keyAnterior);
+        if (clienteEsDescartableDesdeRegistro(clienteAnterior, participanteAnterior.horaRegistro)) {
+          await remove(STORES.CLIENTES, keyAnterior);
+          dispatch({ type: 'DELETE_CLIENTE', payload: keyAnterior });
+        }
+      }
+    }
 
     // Crear cliente si el nuevo nombre no existe
     const existeCliente = state.clientes.some(c => c.key === key);
@@ -267,13 +297,29 @@ export function StoreProvider({ children }) {
       await put(STORES.CLIENTES, cliente);
       dispatch({ type: 'UPSERT_CLIENTE', payload: cliente });
     }
-  }, [state.participantes, state.clientes]);
+  }, [state.participantes, state.clientes, clienteEsDescartableDesdeRegistro]);
 
-  /** Elimina un participante del sorteo activo. */
+  /**
+   * Elimina un participante del sorteo activo.
+   * Si ese participante genero un cliente huerfano (creado por esta misma
+   * registracion, sin estrellas ni historial), tambien se borra del .json
+   * para que no reaparezca en autocompletado.
+   */
   const deleteParticipante = useCallback(async (id) => {
+    const participante = state.participantes.find(p => p.id === id);
+
     await remove(STORES.PARTICIPANTES, id);
     dispatch({ type: 'DELETE_PARTICIPANTE', payload: id });
-  }, []);
+
+    if (participante) {
+      const key = normalizar(participante.nombre);
+      const cliente = state.clientes.find(c => c.key === key);
+      if (clienteEsDescartableDesdeRegistro(cliente, participante.horaRegistro)) {
+        await remove(STORES.CLIENTES, key);
+        dispatch({ type: 'DELETE_CLIENTE', payload: key });
+      }
+    }
+  }, [state.participantes, state.clientes, clienteEsDescartableDesdeRegistro]);
 
   /** Limpia todos los participantes (entre rondas). */
   const clearParticipantes = useCallback(async () => {
