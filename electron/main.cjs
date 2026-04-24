@@ -12,6 +12,13 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
 const path = require('path')
 const fs   = require('fs')
 
+// Silencia la advertencia "Insecure Content-Security-Policy" en modo desarrollo.
+// Esa advertencia es informativa y solo aplica mientras Vite sirve con HMR
+// (que necesita 'unsafe-eval'). En el build empaquetado no aparece.
+if (!app.isPackaged) {
+  process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true'
+}
+
 // ── Preferencias de la app ─────────────────────────────────────────────────
 // Se guardan en userData/prefs.json, separado de los datos del sorteo.
 
@@ -99,7 +106,8 @@ async function loadDevURL(win) {
   for (let i = 0; i < 30; i++) {
     try {
       await win.loadURL(DEV_URL)
-      win.webContents.openDevTools()
+      // DevTools no se abre automaticamente. Quien lo necesite puede hacerlo
+      // con Ctrl+Shift+I o F12.
       return
     } catch {
       await new Promise(r => setTimeout(r, 1000))
