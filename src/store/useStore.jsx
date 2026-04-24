@@ -13,7 +13,7 @@ import {
   put, add, remove, clear, writeAllRecords,
   inicializarBackend,
 } from './persistence.js';
-import { normalizar } from '../utils/normalizar.js';
+import { normalizar, capitalizar } from '../utils/normalizar.js';
 
 // ─────────────────────────────────────────────
 // Identidad estable de clientes
@@ -239,21 +239,24 @@ export function StoreProvider({ children }) {
   /**
    * Registra un participante nuevo.
    * Si el nombre no existe en la base de clientes, lo crea con 0 estrellas.
+   * Capitaliza la primera letra de cada palabra para mantener prolijos
+   * los .json compartidos.
    */
   const addParticipante = useCallback(async (nombre) => {
-    const key = normalizar(nombre);
+    const nombreCap = capitalizar(nombre);
+    const key = normalizar(nombreCap);
     const horaRegistro = new Date().toISOString();
 
     // Persist participante
-    const id = await add(STORES.PARTICIPANTES, { nombre, horaRegistro });
-    dispatch({ type: 'ADD_PARTICIPANTE', payload: { id, nombre, horaRegistro } });
+    const id = await add(STORES.PARTICIPANTES, { nombre: nombreCap, horaRegistro });
+    dispatch({ type: 'ADD_PARTICIPANTE', payload: { id, nombre: nombreCap, horaRegistro } });
 
     // Crear cliente si no existe
     const existeCliente = state.clientes.some(c => c.key === key);
     if (!existeCliente) {
       const cliente = {
         key,
-        nombre,
+        nombre:           nombreCap,
         estrellas:        0,
         clienteId:        generarClienteId(),
         fechaRegistro:    horaRegistro,
@@ -282,10 +285,11 @@ export function StoreProvider({ children }) {
 
   /** Edita el nombre de un participante (y vincula con cliente si aplica). */
   const updateParticipante = useCallback(async (id, nuevoNombre) => {
+    const nombreCap = capitalizar(nuevoNombre);
     const participanteAnterior = state.participantes.find(p => p.id === id);
     const horaRegistro = participanteAnterior?.horaRegistro;
-    const key = normalizar(nuevoNombre);
-    const actualizado = { id, nombre: nuevoNombre, horaRegistro };
+    const key = normalizar(nombreCap);
+    const actualizado = { id, nombre: nombreCap, horaRegistro };
 
     await put(STORES.PARTICIPANTES, actualizado);
     dispatch({ type: 'UPDATE_PARTICIPANTE', payload: actualizado });
@@ -308,7 +312,7 @@ export function StoreProvider({ children }) {
     if (!existeCliente) {
       const cliente = {
         key,
-        nombre:           nuevoNombre,
+        nombre:           nombreCap,
         estrellas:        0,
         clienteId:        generarClienteId(),
         fechaRegistro:    new Date().toISOString(),
@@ -442,9 +446,10 @@ export function StoreProvider({ children }) {
 
   /** Crea o actualiza un cliente en la base permanente. */
   const upsertCliente = useCallback(async (cliente) => {
+    const nombreCap = capitalizar(cliente.nombre);
     const registro = {
-      key:              normalizar(cliente.nombre),
-      nombre:           cliente.nombre,
+      key:              normalizar(nombreCap),
+      nombre:           nombreCap,
       estrellas:        cliente.estrellas ?? 0,
       clienteId:        cliente.clienteId ?? generarClienteId(),
       fechaRegistro:    cliente.fechaRegistro ?? new Date().toISOString(),
