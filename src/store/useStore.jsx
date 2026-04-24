@@ -361,9 +361,16 @@ export function StoreProvider({ children }) {
     dispatch({ type: 'SET_CONFIG', payload: cambios });
   }, [state.config]);
 
-  /** Inicia una nueva sesión de sorteo (resetea el día, conserva la configuración). */
+  /**
+   * Inicia una nueva sesión de sorteo.
+   * - Resetea el runtime (rondaActual, idsRondasDelDia, registroCerrado).
+   * - Conserva la configuración (titulo, horaInicio, rondas, premios).
+   * - Conserva la lista de inscritos: los eventos son semanales y la mayoria
+   *   de los clientes habituales vuelven a participar, asi no hay que
+   *   re-registrar a toda la sede cada semana. Si un inscrito ya no participa,
+   *   se elimina manualmente desde la pestana Participantes.
+   */
   const nuevaSesion = useCallback(async () => {
-    await clear(STORES.PARTICIPANTES);
     const cambios = {
       rondaActual: 0,
       registroCerrado: false,
@@ -371,7 +378,6 @@ export function StoreProvider({ children }) {
       idsRondasDelDia: [],
     };
     await saveConfig({ ...state.config, ...cambios });
-    dispatch({ type: 'CLEAR_PARTICIPANTES' });
     dispatch({ type: 'SET_CONFIG', payload: cambios });
   }, [state.config]);
 

@@ -86,29 +86,25 @@ export default function App() {
 }
 
 function TopNav({ panel, setPanel }) {
-  const tabs = [
-    { id: PANELES.ADMIN,      label: 'Admin General' },
-    { id: PANELES.SUPERADMIN, label: 'SuperAdmin'    },
-  ]
+  // El botón SuperAdmin se oculta tras la diana: el operador ve solo la marca
+  // "🎯 Sorteo" como decoración; el super admin sabe que clicar el icono
+  // abre el gate con contraseña 1980. Ademas Admin General queda como panel
+  // por defecto sin botones visibles de navegacion.
+  const enAdmin = panel === PANELES.ADMIN
   return (
     <nav className="flex items-center gap-2 px-4 py-3 sticky top-0 z-50"
       style={{ background: 'rgba(10,10,20,.95)', borderBottom: '1px solid rgba(255,215,0,.1)', backdropFilter: 'blur(10px)' }}>
-      <span className="text-yellow-400 font-black text-lg mr-3 hidden sm:block tracking-wide">
+      <button
+        type="button"
+        onClick={() => setPanel(enAdmin ? PANELES.SUPERADMIN : PANELES.ADMIN)}
+        title={enAdmin ? 'Acceso super admin' : 'Volver al panel general'}
+        className="text-yellow-400 font-black text-lg tracking-wide
+          hover:text-yellow-300 transition focus:outline-none
+          focus-visible:ring-2 focus-visible:ring-yellow-400 rounded"
+        style={{ cursor: 'pointer' }}
+      >
         🎯 Sorteo
-      </span>
-      {tabs.map(({ id, label }) => (
-        <button
-          key={id}
-          onClick={() => setPanel(id)}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition
-            ${panel === id
-              ? 'bg-yellow-500 text-black shadow-md'
-              : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
-            }`}
-        >
-          {label}
-        </button>
-      ))}
+      </button>
     </nav>
   )
 }

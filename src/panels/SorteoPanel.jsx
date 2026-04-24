@@ -314,32 +314,24 @@ export default function SorteoPanel({ onGanador }) {
             >
               INICIAR SORTEO
             </button>
-            <p
-              className="text-gray-400"
-              style={{ fontSize: 'clamp(.95rem, 1.2vw, 1.05rem)' }}
-            >
-              {!esPrimerSorteoDeLaSesion || cumpleMinimo
-                ? 'Presiona el boton para lanzar la animacion y revelar el ganador.'
-                : `Se requieren minimo ${MIN_PARTICIPANTES_POR_RONDA} participantes para iniciar. Faltan ${faltantesMinimos}.`}
-            </p>
+            {esPrimerSorteoDeLaSesion && !cumpleMinimo && (
+              <p
+                className="text-gray-400"
+                style={{ fontSize: 'clamp(.95rem, 1.2vw, 1.05rem)' }}
+              >
+                Se requieren minimo {MIN_PARTICIPANTES_POR_RONDA} participantes para iniciar. Faltan {faltantesMinimos}.
+              </p>
+            )}
           </div>
         )}
 
         {fase === 'animando' && (
-          <div className="flex flex-col items-center gap-2">
-            <p
-              className="text-yellow-300 font-bold animate-pulse"
-              style={{ fontSize: 'clamp(1.4rem, 2vw, 2rem)' }}
-            >
-              Sorteando...
-            </p>
-            <p
-              className="text-gray-400"
-              style={{ fontSize: 'clamp(.95rem, 1.2vw, 1.05rem)' }}
-            >
-              La ruleta recorrera varias tarjetas antes de caer en el ganador.
-            </p>
-          </div>
+          <p
+            className="text-yellow-300 font-bold animate-pulse"
+            style={{ fontSize: 'clamp(1.4rem, 2vw, 2rem)' }}
+          >
+            Sorteando...
+          </p>
         )}
 
         {/* El nombre del ganador lo muestra GanadorOverlay — no se duplica aquí */}
