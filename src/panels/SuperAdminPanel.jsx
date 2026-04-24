@@ -23,7 +23,10 @@ const PASSWORD_SUPERADMIN = '1980'
 
 export default function SuperAdminPanel() {
   const { state, actions } = useStore()
-  const [tab, setTab] = useState(TABS.CLIENTES)
+  // En web, la unica responsabilidad del super admin remoto es vincular la
+  // carpeta compartida; por eso la pestana por defecto en web es Datos.
+  // En Electron, el super admin real trabaja clientes/estrellas, por eso abre en Clientes.
+  const [tab, setTab] = useState(isElectron ? TABS.CLIENTES : TABS.DATOS)
   const [busqueda, setBusqueda] = useState('')
   const [nuevoNombre, setNuevoNombre] = useState('')
   const [errorNuevo, setErrorNuevo] = useState('')
@@ -147,6 +150,12 @@ export default function SuperAdminPanel() {
         </span>
       </div>
 
+      {/* Zona de mantenimiento (borrado total) — solo Electron.
+          En web con carpeta vinculada, borraria los JSON de la carpeta
+          de Dropbox compartida y afectaria a todos los equipos. Si hay
+          que resetear, se hace desde el Electron del super admin o
+          limpiando site data desde el navegador. */}
+      {isElectron && (
       <div className="mb-6 rounded-2xl border border-red-900 bg-red-950/30 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -170,13 +179,21 @@ export default function SuperAdminPanel() {
           </button>
         </div>
       </div>
+      )}
 
-      {/* Tabs */}
+      {/* Tabs.
+          En web (operador/sede remota) solo se exponen Datos y Respaldo,
+          que son las acciones del super admin remoto por RustDesk: vincular
+          la carpeta compartida y exportar snapshots de emergencia.
+          Las pestanas de calificacion de estrellas, historial por cliente e
+          importacion .txt quedan exclusivamente en Electron. */}
       <div className="flex gap-2 mb-6 border-b border-gray-700 pb-2 flex-wrap">
         {[
-          { id: TABS.CLIENTES,  label: 'Base de clientes' },
-          { id: TABS.HISTORIAL, label: clienteHistorial ? `Historial — ${clienteHistorial.nombre}` : 'Historial' },
-          { id: TABS.IMPORTAR,  label: 'Importar .txt' },
+          ...(isElectron ? [
+            { id: TABS.CLIENTES,  label: 'Base de clientes' },
+            { id: TABS.HISTORIAL, label: clienteHistorial ? `Historial — ${clienteHistorial.nombre}` : 'Historial' },
+            { id: TABS.IMPORTAR,  label: 'Importar .txt' },
+          ] : []),
           { id: TABS.DATOS,    label: 'Datos' },
           { id: TABS.RESPALDO, label: 'Respaldo' },
         ].map(t => (
