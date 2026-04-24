@@ -38,3 +38,35 @@ export function safeText(v) {
   div.textContent = v || ''
   return div.innerHTML
 }
+
+/**
+ * Formatea un ISO string como "HH:MM:SS".
+ * Devuelve "—" si el valor es nulo o inválido.
+ * @param {string|null} iso
+ * @returns {string}
+ */
+export function fmtHora(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+/**
+ * Formatea un ISO string como "DD mmm YYYY" (ej: "08 abr 2026").
+ * Devuelve "—" si el valor es nulo.
+ * @param {string|null} iso
+ * @returns {string}
+ */
+export function fmtFechaCorta(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('es-CL', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  })
+}
+
+/**
+ * Formatea un ISO string como "DD mmm YYYY" (alias de fmtFechaCorta).
+ * @param {string|null} iso
+ * @returns {string}
+ */
+export const fmtFechaLarga = fmtFechaCorta

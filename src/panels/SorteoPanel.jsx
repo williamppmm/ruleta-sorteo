@@ -1,14 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+// eslint-disable-next-line no-unused-vars -- motion se usa como <motion.div> (JSX member expression)
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../store/useStore.jsx'
 import { seleccionarGanador } from '../engine/probabilidades.js'
 import { estaVetadoIntradia } from '../engine/vetos.js'
 import { formatPrize } from '../utils/helpers.js'
 import { beep, ding } from '../utils/audio.js'
+import { MIN_PARTICIPANTES_POR_RONDA, cumpleMinimoParticipantes, participantesFaltantes } from '../domain/participantes.js'
 
 const DURACION_ANIMACION = 7200
 const PAUSA_GANADOR_MS = 900
-const MIN_PARTICIPANTES_POR_RONDA = 10
 const COLORES = ['color-1', 'color-2', 'color-3', 'color-4', 'color-5', 'color-6']
 
 function secureIdx(max) {
@@ -68,20 +69,13 @@ export default function SorteoPanel({ onGanador }) {
   const rondasCompletadas = cfg.idsRondasDelDia?.length ?? 0
   const todasRondasCompletadas = rondasCompletadas >= cfg.totalRondas
   const esPrimerSorteoDeLaSesion = rondasCompletadas === 0
-  const faltantesMinimos = Math.max(MIN_PARTICIPANTES_POR_RONDA - visibles.length, 0)
-  const cumpleMinimoParticipantes = !esPrimerSorteoDeLaSesion
-    || visibles.length >= MIN_PARTICIPANTES_POR_RONDA
+  const faltantesMinimos = participantesFaltantes(visibles.length)
+  const cumpleMinimo = cumpleMinimoParticipantes(visibles.length, esPrimerSorteoDeLaSesion)
 
   const logDebug = useCallback((mensaje, data = null) => {
     const stamp = new Date().toLocaleTimeString('es-CO', { hour12: false })
     console.log(`[Sorteo ${stamp}] ${mensaje}`, data ?? '')
   }, [])
-
-  useEffect(() => {
-    if (fase === 'espera') {
-      setParticipantesSnapshot(visibles)
-    }
-  }, [fase, visibles])
 
   const limpiarAnimacion = useCallback(() => {
     if (animRef.current) cancelAnimationFrame(animRef.current)
@@ -160,7 +154,7 @@ export default function SorteoPanel({ onGanador }) {
   const iniciar = useCallback(async () => {
     if (fase !== 'espera' || visibles.length === 0) return
     if (todasRondasCompletadas) return
-    if (!cumpleMinimoParticipantes) {
+    if (!cumpleMinimo) {
       logDebug('Intento bloqueado por minimo de participantes.', {
         visibles: visibles.length,
         minimo: MIN_PARTICIPANTES_POR_RONDA,
@@ -219,7 +213,7 @@ export default function SorteoPanel({ onGanador }) {
     onGanador,
     premio,
     state.clientes,
-    cumpleMinimoParticipantes,
+    cumpleMinimo,
     todasRondasCompletadas,
     visibles,
   ])
@@ -309,7 +303,7 @@ export default function SorteoPanel({ onGanador }) {
           <div className="flex flex-col items-center gap-3">
             <button
               onClick={iniciar}
-              disabled={participantesRender.length === 0 || !cumpleMinimoParticipantes}
+              disabled={participantesRender.length === 0 || !cumpleMinimo}
               className="font-black text-black bg-yellow-500 hover:bg-yellow-400
                 disabled:opacity-30 disabled:cursor-not-allowed
                 px-14 py-5 rounded-2xl transition-all duration-200 active:scale-95"
@@ -324,7 +318,7 @@ export default function SorteoPanel({ onGanador }) {
               className="text-gray-400"
               style={{ fontSize: 'clamp(.95rem, 1.2vw, 1.05rem)' }}
             >
-              {!esPrimerSorteoDeLaSesion || cumpleMinimoParticipantes
+              {!esPrimerSorteoDeLaSesion || cumpleMinimo
                 ? 'Presiona el boton para lanzar la animacion y revelar el ganador.'
                 : `Se requieren minimo ${MIN_PARTICIPANTES_POR_RONDA} participantes para iniciar. Faltan ${faltantesMinimos}.`}
             </p>

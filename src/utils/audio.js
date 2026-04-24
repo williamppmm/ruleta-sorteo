@@ -34,7 +34,7 @@ export function beep(freq = 880, dur = 0.06, gain = 0.35) {
   try {
     const ctx = getCtx()
     reproducirTonoProgramado(ctx, freq, ctx.currentTime, dur, gain)
-  } catch (e) {
+  } catch {
     // Silenciar errores de audio para no interrumpir la animacion.
   }
 }
@@ -46,7 +46,7 @@ export function ding() {
     const base = ctx.currentTime
     reproducirTonoProgramado(ctx, 880, base, 0.085, 0.45)
     reproducirTonoProgramado(ctx, 1320, base + 0.078, 0.115, 0.4)
-  } catch (e) {
+  } catch {
     // Silenciar errores de audio para no interrumpir la animacion.
   }
 }

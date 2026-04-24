@@ -1,19 +1,26 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore.jsx'
 import { normalizar } from '../utils/normalizar.js'
+import { fmtHora, fmtFechaLarga } from '../utils/helpers.js'
+import {
+  MIN_PARTICIPANTES_POR_RONDA,
+  validarDuplicado,
+  participantesFaltantes,
+} from '../domain/participantes.js'
+import { normalizarPremios, puedeIrAlSorteo as calcPuedeIrAlSorteo } from '../domain/rondas.js'
 
 const PASSWORD_ADMIN = '1980'
-const MIN_PARTICIPANTES_POR_RONDA = 10
 
 export default function AdminPanel({ onIrAlSorteo, onVerGanadores }) {
-  const { state, actions, derived } = useStore()
+  const { state, derived } = useStore()
   const [tab, setTab] = useState('config')
   const hayGanadoresSesion = (state.config.idsRondasDelDia?.length ?? 0) > 0
+  const faltantesMinimos = participantesFaltantes(state.participantes.length)
+  const puedeIr = calcPuedeIrAlSorteo(
+    state.config, derived.sorteoTerminado,
+    state.participantes.length, MIN_PARTICIPANTES_POR_RONDA
+  )
   const esPrimerSorteoDeLaSesion = (state.config.idsRondasDelDia?.length ?? 0) === 0
-  const faltantesMinimos = Math.max(MIN_PARTICIPANTES_POR_RONDA - state.participantes.length, 0)
-  const puedeIrAlSorteo = state.config.registroCerrado
-    && !derived.sorteoTerminado
-    && (!esPrimerSorteoDeLaSesion || state.participantes.length >= MIN_PARTICIPANTES_POR_RONDA)
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -31,7 +38,7 @@ export default function AdminPanel({ onIrAlSorteo, onVerGanadores }) {
         {state.config.registroCerrado && !derived.sorteoTerminado && (
           <button
             onClick={onIrAlSorteo}
-            disabled={!puedeIrAlSorteo}
+            disabled={!puedeIr}
             className="bg-yellow-500 hover:bg-yellow-400 text-black font-black
               px-6 py-3 rounded-xl transition text-base sm:text-lg shadow-lg
               shadow-yellow-900/50 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -41,7 +48,7 @@ export default function AdminPanel({ onIrAlSorteo, onVerGanadores }) {
         )}
       </div>
 
-      {state.config.registroCerrado && !derived.sorteoTerminado && esPrimerSorteoDeLaSesion && !puedeIrAlSorteo && (
+      {state.config.registroCerrado && !derived.sorteoTerminado && esPrimerSorteoDeLaSesion && !puedeIr && (
         <div className="mb-6 rounded-xl border border-orange-700/70 bg-orange-950/30 px-4 py-3 text-sm text-orange-200">
           Se requieren minimo {MIN_PARTICIPANTES_POR_RONDA} participantes para iniciar una ronda.
           Actualmente hay {state.participantes.length} y faltan {faltantesMinimos}.
@@ -95,11 +102,7 @@ function SeccionConfig() {
   function handleRondasChange(valor) {
     const n = Math.max(1, parseInt(valor) || 1)
     setTotalRondas(n)
-    setPremios(prev => {
-      const arr = [...prev]
-      while (arr.length < n) arr.push('')
-      return arr.slice(0, n)
-    })
+    setPremios(prev => normalizarPremios(prev, n))
   }
 
   function handlePremioChange(i, valor) {
@@ -284,17 +287,10 @@ function SeccionParticipantes() {
     if (!cerrado) inputRef.current?.focus()
   }, [cerrado])
 
-  function validarDuplicado(n, excluirId = null) {
-    const norm = normalizar(n)
-    return state.participantes.some(
-      p => p.id !== excluirId && normalizar(p.nombre) === norm
-    )
-  }
-
   async function ejecutarRegistro(n) {
     const nombre_trim = n.trim()
     if (!nombre_trim) { setMsgError('Nombre obligatorio.'); return }
-    if (validarDuplicado(nombre_trim)) { setMsgError('Nombre duplicado en el registro actual.'); return }
+    if (validarDuplicado(nombre_trim, state.participantes)) { setMsgError('Nombre duplicado en el registro actual.'); return }
 
     await actions.addParticipante(nombre_trim)
     setNombre('')
@@ -331,7 +327,7 @@ function SeccionParticipantes() {
   async function guardarEdicion(p) {
     const n = editNombre.trim()
     if (!n) { setEditandoId(null); return }
-    if (validarDuplicado(n, p.id)) {
+    if (validarDuplicado(n, state.participantes, p.id)) {
       alert('Nombre duplicado.')
       return
     }
@@ -610,18 +606,4 @@ function SeccionHistorial() {
   )
 }
 
-// ─────────────────────────────────────────────
-// Helpers de formato
-// ─────────────────────────────────────────────
-function fmtHora(iso) {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
-}
-
-function fmtFechaLarga(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('es-CL', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  })
-}
+// fmtHora y fmtFechaLarga importados desde src/utils/helpers.js

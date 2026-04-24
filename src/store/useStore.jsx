@@ -10,9 +10,53 @@
 import { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import {
   STORES, CONFIG_DEFAULT, cargarEstadoInicial, saveConfig,
-  put, add, remove, clear,
-} from './db.js';
+  put, add, remove, clear, writeAllRecords,
+} from './persistence.js';
 import { normalizar } from '../utils/normalizar.js';
+
+// ─────────────────────────────────────────────
+// Identidad estable de clientes
+// ─────────────────────────────────────────────
+
+/** Genera un ID opaco que no cambia aunque se renombre el cliente. */
+function generarClienteId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/**
+ * Migración de datos heredados (IndexedDB o JSON sin clienteId).
+ *
+ * - Asigna clienteId a clientes que no lo tienen.
+ * - Backfilla ganadorClienteId en sorteos históricos usando el ganadorKey.
+ *
+ * Solo persiste los registros que realmente cambiaron.
+ */
+async function migrarIdentidad(clientes, sorteos) {
+  // 1. Asignar clienteId a clientes sin él
+  const clientesMigrados = clientes.map(c =>
+    c.clienteId ? c : { ...c, clienteId: generarClienteId() }
+  );
+
+  // 2. Backfill ganadorClienteId en sorteos sin él
+  const sorteosMigrados = sorteos.map(s => {
+    if (s.ganadorClienteId !== undefined) return s;
+    const cid = clientesMigrados.find(c => c.key === s.ganadorKey)?.clienteId ?? null;
+    return { ...s, ganadorClienteId: cid };
+  });
+
+  // 3. Persistir solo los que cambiaron
+  const clientesCambiados = clientesMigrados.filter(c =>
+    !clientes.some(o => o.key === c.key && o.clienteId)
+  );
+  const sorteosCambiados = sorteosMigrados.filter(s =>
+    !sorteos.some(o => o.id === s.id && o.ganadorClienteId !== undefined)
+  );
+
+  for (const c of clientesCambiados) await put(STORES.CLIENTES, c);
+  for (const s of sorteosCambiados) await put(STORES.SORTEOS, s);
+
+  return { clientes: clientesMigrados, sorteos: sorteosMigrados };
+}
 
 // ─────────────────────────────────────────────
 // Estado inicial
@@ -127,6 +171,15 @@ function reducer(state, action) {
         config: { ...CONFIG_DEFAULT },
       };
 
+    case 'RESTAURAR_BACKUP':
+      return {
+        ...state,
+        clientes:      action.payload.clientes,
+        participantes: action.payload.participantes,
+        sorteos:       action.payload.sorteos,
+        config:        action.payload.config,
+      };
+
     default:
       return state;
   }
@@ -143,9 +196,13 @@ const StoreContext = createContext(null);
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, ESTADO_INICIAL);
 
-  // Carga inicial desde IndexedDB
+  // Carga inicial + migración de identidad de clientes
   useEffect(() => {
     cargarEstadoInicial()
+      .then(async (datos) => {
+        const migrado = await migrarIdentidad(datos.clientes, datos.sorteos);
+        return { ...datos, ...migrado };
+      })
       .then(datos => dispatch({ type: 'CARGAR_TODO', payload: datos }))
       .catch(err  => dispatch({ type: 'ERROR_CARGA', payload: err.message }));
   }, []);
@@ -177,8 +234,9 @@ export function StoreProvider({ children }) {
       const cliente = {
         key,
         nombre,
-        estrellas: 0,
-        fechaRegistro: horaRegistro,
+        estrellas:        0,
+        clienteId:        generarClienteId(),
+        fechaRegistro:    horaRegistro,
         fechaUltimoPremio: null,
       };
       await put(STORES.CLIENTES, cliente);
@@ -200,9 +258,10 @@ export function StoreProvider({ children }) {
     if (!existeCliente) {
       const cliente = {
         key,
-        nombre: nuevoNombre,
-        estrellas: 0,
-        fechaRegistro: new Date().toISOString(),
+        nombre:           nuevoNombre,
+        estrellas:        0,
+        clienteId:        generarClienteId(),
+        fechaRegistro:    new Date().toISOString(),
         fechaUltimoPremio: null,
       };
       await put(STORES.CLIENTES, cliente);
@@ -262,15 +321,40 @@ export function StoreProvider({ children }) {
     dispatch({ type: 'RESET_TODO' });
   }, []);
 
+  /**
+   * Restaura la app desde un objeto de backup.
+   * Reemplaza todos los stores y la configuración con los datos del backup.
+   * @param {{ clientes, participantes, sorteos, config }} datos
+   */
+  const restaurarBackup = useCallback(async (datos) => {
+    await Promise.all([
+      writeAllRecords(STORES.CLIENTES,      datos.clientes      ?? []),
+      writeAllRecords(STORES.PARTICIPANTES, datos.participantes ?? []),
+      writeAllRecords(STORES.SORTEOS,       datos.sorteos       ?? []),
+    ]);
+    const config = { ...CONFIG_DEFAULT, ...(datos.config ?? {}) };
+    await saveConfig(config);
+
+    // Ordenar igual que cargarEstadoInicial para que el estado sea consistente
+    const payload = {
+      clientes:      [...(datos.clientes ?? [])].sort((a, b) => a.nombre.localeCompare(b.nombre)),
+      participantes: [...(datos.participantes ?? [])].sort((a, b) => new Date(a.horaRegistro) - new Date(b.horaRegistro)),
+      sorteos:       [...(datos.sorteos ?? [])].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)),
+      config,
+    };
+    dispatch({ type: 'RESTAURAR_BACKUP', payload });
+  }, []);
+
   // ── CRUD Clientes ────────────────────────────
 
   /** Crea o actualiza un cliente en la base permanente. */
   const upsertCliente = useCallback(async (cliente) => {
     const registro = {
-      key: normalizar(cliente.nombre),
-      nombre: cliente.nombre,
-      estrellas: cliente.estrellas ?? 0,
-      fechaRegistro: cliente.fechaRegistro ?? new Date().toISOString(),
+      key:              normalizar(cliente.nombre),
+      nombre:           cliente.nombre,
+      estrellas:        cliente.estrellas ?? 0,
+      clienteId:        cliente.clienteId ?? generarClienteId(),
+      fechaRegistro:    cliente.fechaRegistro ?? new Date().toISOString(),
       fechaUltimoPremio: cliente.fechaUltimoPremio ?? null,
     };
     await put(STORES.CLIENTES, registro);
@@ -299,6 +383,7 @@ export function StoreProvider({ children }) {
     const ganadorKey = normalizar(ganadorNombre);
 
     // Persistir sorteo
+    const clienteGanador = state.clientes.find(c => c.key === ganadorKey);
     const sorteo = {
       fecha,
       hora,
@@ -306,6 +391,7 @@ export function StoreProvider({ children }) {
       valorPremio,
       ganadorNombre,
       ganadorKey,
+      ganadorClienteId: clienteGanador?.clienteId ?? null,
       totalParticipantes: state.participantes.length,
       pagado: false,
       fechaPago: null,
@@ -369,6 +455,7 @@ export function StoreProvider({ children }) {
         siguienteRonda,
         nuevaSesion,
         borrarTodo,
+        restaurarBackup,
         upsertCliente,
         deleteCliente,
         registrarGanador,

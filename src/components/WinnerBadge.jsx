@@ -1,9 +1,12 @@
+import { useId } from 'react'
+
 /**
  * Badges SVG de posición — rescatados del prototipo sin cambios.
  * @param {{ index: number }} props  — 0=oro, 1=plata, 2=bronce, 3+=estrella
  */
 export default function WinnerBadge({ index }) {
-  const uid = `badge_${index}_${Math.random().toString(36).slice(2, 6)}`
+  const id = useId()
+  const uid = `badge_${index}_${id.replace(/:/g, '')}`
 
   if (index === 0) return (
     <svg viewBox="0 0 64 64" className="w-12 h-12" role="img" aria-label="Primer lugar">

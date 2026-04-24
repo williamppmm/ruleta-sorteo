@@ -1,48 +1,13 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore.jsx'
 import StarRating from '../components/StarRating.jsx'
-import { estaVetadoInterdia } from '../engine/vetos.js'
 import { normalizar } from '../utils/normalizar.js'
+import { isElectron, desktopApi } from '../services/desktopApi.js'
+import { fmtFechaCorta, fmtHora } from '../utils/helpers.js'
+import { parsearTxt, planificarImportacion } from '../domain/clientes.js'
 
-const TABS = { CLIENTES: 'clientes', HISTORIAL: 'historial', IMPORTAR: 'importar' }
+const TABS = { CLIENTES: 'clientes', HISTORIAL: 'historial', IMPORTAR: 'importar', DATOS: 'datos', RESPALDO: 'respaldo' }
 const PASSWORD_SUPERADMIN = '1980'
-
-// ─────────────────────────────────────────────
-// Parser del archivo .txt
-// ─────────────────────────────────────────────
-function parsearTxt(texto) {
-  const lineas = texto.split('\n')
-  const resultado = []
-  const errores = []
-
-  lineas.forEach((linea, i) => {
-    const limpia = linea.trim()
-    if (!limpia || limpia.startsWith('#')) return   // vacía o comentario
-
-    // Separar por coma o punto y coma
-    const partes = limpia.split(/[,;]/).map(p => p.trim())
-    const nombre = partes[0]
-
-    if (!nombre) {
-      errores.push(`Línea ${i + 1}: nombre vacío`)
-      return
-    }
-
-    let estrellas = 0
-    if (partes[1] !== undefined) {
-      const n = parseInt(partes[1])
-      if (isNaN(n)) {
-        errores.push(`Línea ${i + 1}: "${partes[1]}" no es un número válido de estrellas — se usará 0`)
-      } else {
-        estrellas = Math.max(0, Math.min(3, n))
-      }
-    }
-
-    resultado.push({ nombre, estrellas })
-  })
-
-  return { clientes: resultado, errores }
-}
 
 export default function SuperAdminPanel() {
   const { state, actions } = useStore()
@@ -151,33 +116,12 @@ export default function SuperAdminPanel() {
 
   const sorteosDelCliente = useMemo(() => {
     if (!clienteHistorial) return []
-    return state.sorteos.filter(s => s.ganadorKey === clienteHistorial.key)
+    return state.sorteos.filter(s =>
+      // Preferir clienteId (sobrevive renombrados); fallback a key para sorteos heredados
+      (clienteHistorial.clienteId && s.ganadorClienteId === clienteHistorial.clienteId)
+      || s.ganadorKey === clienteHistorial.key
+    )
   }, [clienteHistorial, state.sorteos])
-
-  // ── Estado de veto interdía ───────────────────
-  function vetadoHasta(cliente) {
-    if (!estaVetadoInterdia({ nombre: cliente.nombre }, state.clientes)) return null
-    if (!cliente.fechaUltimoPremio) return null
-    const fecha = new Date(new Date(cliente.fechaUltimoPremio).toDateString())
-    fecha.setDate(fecha.getDate() + 3)
-    return fecha.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })
-  }
-
-  // ── Formato ───────────────────────────────────
-  function fmtFecha(iso) {
-    if (!iso) return '—'
-    return new Date(iso).toLocaleDateString('es-CL', {
-      day: '2-digit', month: 'short', year: 'numeric',
-    })
-  }
-
-  function fmtHora(iso) {
-    if (!iso) return ''
-    const d = new Date(iso)
-    const h = String(d.getHours()).padStart(2, '0')
-    const m = String(d.getMinutes()).padStart(2, '0')
-    return `${h}:${m}`
-  }
 
   // ─────────────────────────────────────────────
   return (
@@ -221,6 +165,8 @@ export default function SuperAdminPanel() {
           { id: TABS.CLIENTES,  label: 'Base de clientes' },
           { id: TABS.HISTORIAL, label: clienteHistorial ? `Historial — ${clienteHistorial.nombre}` : 'Historial' },
           { id: TABS.IMPORTAR,  label: 'Importar .txt' },
+          ...(isElectron ? [{ id: TABS.DATOS,     label: 'Datos' }]    : []),
+          { id: TABS.RESPALDO,  label: 'Respaldo' },
         ].map(t => (
           <button
             key={t.id}
@@ -234,6 +180,14 @@ export default function SuperAdminPanel() {
           </button>
         ))}
       </div>
+
+      {/* ── TAB: DATOS ── */}
+      {tab === TABS.DATOS && isElectron && <SeccionDatos />}
+
+      {/* ── TAB: RESPALDO ── */}
+      {tab === TABS.RESPALDO && (
+        <SeccionRespaldo actions={actions} totalClientes={state.clientes.length} totalSorteos={state.sorteos.length} />
+      )}
 
       {/* ── TAB: IMPORTAR ── */}
       {tab === TABS.IMPORTAR && (
@@ -295,13 +249,11 @@ export default function SuperAdminPanel() {
                     <th className="pb-2 pr-4 font-medium">Nombre</th>
                     <th className="pb-2 pr-4 font-medium">Estrellas</th>
                     <th className="pb-2 pr-4 font-medium">Último premio</th>
-                    <th className="pb-2 pr-4 font-medium">Veto</th>
                     <th className="pb-2 font-medium">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {clientesFiltrados.map((c, i) => {
-                    const vetado = vetadoHasta(c)
                     const editando = editandoKey === c.key
                     const confirmando = confirmandoKey === c.key
 
@@ -355,16 +307,8 @@ export default function SuperAdminPanel() {
                         {/* Último premio */}
                         <td className="py-3 pr-4 text-gray-400">
                           {c.fechaUltimoPremio
-                            ? `${fmtFecha(c.fechaUltimoPremio)} ${fmtHora(c.fechaUltimoPremio)}`
+                            ? `${fmtFechaCorta(c.fechaUltimoPremio)} ${fmtHora(c.fechaUltimoPremio)}`
                             : <span className="text-gray-600">—</span>
-                          }
-                        </td>
-
-                        {/* Veto interdía */}
-                        <td className="py-3 pr-4">
-                          {vetado
-                            ? <span className="text-yellow-400 text-xs font-bold">Vetado hasta {vetado}</span>
-                            : <span className="text-gray-600 text-xs">—</span>
                           }
                         </td>
 
@@ -464,7 +408,7 @@ export default function SuperAdminPanel() {
                     <tbody>
                       {sorteosDelCliente.map(s => (
                         <tr key={s.id} className="border-b border-gray-800">
-                          <td className="py-3 pr-4 text-white">{fmtFecha(s.fecha)}</td>
+                          <td className="py-3 pr-4 text-white">{fmtFechaCorta(s.fecha)}</td>
                           <td className="py-3 pr-4 text-gray-400">{s.hora}</td>
                           <td className="py-3 pr-4 text-yellow-400 font-bold">{s.valorPremio}</td>
                           <td className="py-3 pr-4">
@@ -474,7 +418,7 @@ export default function SuperAdminPanel() {
                             }
                           </td>
                           <td className="py-3 text-gray-400">
-                            {s.fechaPago ? fmtFecha(s.fechaPago) : '—'}
+                            {s.fechaPago ? fmtFechaCorta(s.fechaPago) : '—'}
                           </td>
                         </tr>
                       ))}
@@ -543,6 +487,311 @@ export default function SuperAdminPanel() {
 }
 
 // ─────────────────────────────────────────────
+// Sección Datos (solo Electron)
+// ─────────────────────────────────────────────
+function SeccionDatos() {
+  const [dataPath, setDataPath]   = useState(null)   // null = cargando
+  const [estado, setEstado]       = useState(null)   // { ok, mensaje } | null
+  const [ocupado, setOcupado]     = useState(false)
+
+  // Cargar ruta actual al montar
+  useEffect(() => {
+    desktopApi.getDataPath().then(p => setDataPath(p))
+  }, [])
+
+  async function seleccionarCarpeta() {
+    setEstado(null)
+    const nuevaRuta = await desktopApi.selectDataFolder()
+    if (!nuevaRuta) return   // usuario canceló
+
+    setOcupado(true)
+    const resultado = await desktopApi.changeDataPath(nuevaRuta)
+    setOcupado(false)
+
+    if (resultado.ok) {
+      setDataPath(nuevaRuta)
+      setEstado({ ok: true, mensaje: 'Carpeta cambiada correctamente. Los datos se migraron a la nueva ubicación.' })
+    } else {
+      setEstado({ ok: false, mensaje: `Error al cambiar carpeta: ${resultado.error}` })
+    }
+  }
+
+  async function abrirCarpeta() {
+    await desktopApi.openDataFolder()
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+
+      {/* Ruta actual */}
+      <div className="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
+        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">
+          Carpeta de datos activa
+        </p>
+        <p className="font-mono text-sm text-yellow-300 break-all">
+          {dataPath === null ? 'Cargando…' : dataPath}
+        </p>
+        <p className="text-xs text-gray-500 mt-2">
+          Aquí se guardan <code className="text-gray-400">clientes.json</code>,{' '}
+          <code className="text-gray-400">participantes.json</code>,{' '}
+          <code className="text-gray-400">sorteos.json</code> y{' '}
+          <code className="text-gray-400">config.json</code>.
+        </p>
+      </div>
+
+      {/* Acciones */}
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={seleccionarCarpeta}
+          disabled={ocupado}
+          className="bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black
+            font-bold px-5 py-2.5 rounded-xl transition"
+        >
+          {ocupado ? 'Migrando…' : 'Seleccionar carpeta de datos'}
+        </button>
+
+        <button
+          onClick={abrirCarpeta}
+          className="bg-gray-700 hover:bg-gray-600 text-white font-semibold
+            px-5 py-2.5 rounded-xl transition"
+        >
+          Abrir carpeta
+        </button>
+      </div>
+
+      {/* Resultado */}
+      {estado && (
+        <div className={`rounded-xl border p-4 text-sm font-medium ${
+          estado.ok
+            ? 'border-green-700 bg-green-950/40 text-green-300'
+            : 'border-red-700 bg-red-950/40 text-red-300'
+        }`}>
+          {estado.ok ? '✓ ' : '✕ '}{estado.mensaje}
+        </div>
+      )}
+
+      {/* Nota informativa */}
+      <div className="rounded-xl border border-gray-700 bg-gray-900/40 p-4 text-xs text-gray-500 space-y-1">
+        <p>Al cambiar la carpeta, los archivos existentes se copian automáticamente a la nueva ubicación.</p>
+        <p>Los archivos originales no se eliminan de la carpeta anterior.</p>
+        <p>Si la carpeta destino no existe, se crea automáticamente.</p>
+      </div>
+
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
+// Sección Respaldo
+// Export: disponible en web (descarga por el navegador) y en Electron (diálogo nativo).
+// Restaurar: solo en Electron (el super admin trabaja sobre archivos locales).
+// ─────────────────────────────────────────────
+function SeccionRespaldo({ actions, totalClientes, totalSorteos }) {
+  const { state } = useStore()
+  const [estado,           setEstado]           = useState(null)   // { ok, mensaje } | null
+  const [ocupado,          setOcupado]          = useState(false)
+  const [confirmando,      setConfirmando]      = useState(false)
+  const [passwordRestore,  setPasswordRestore]  = useState('')
+  const [errorPassword,    setErrorPassword]    = useState(false)
+  const [datosBackup,      setDatosBackup]      = useState(null)   // datos leídos, pendientes de confirmación
+
+  async function exportar() {
+    setEstado(null)
+    setOcupado(true)
+
+    if (isElectron) {
+      const res = await desktopApi.exportBackup()
+      setOcupado(false)
+      if (res.canceled) return
+      if (res.ok) {
+        setEstado({ ok: true, mensaje: `Backup guardado en: ${res.filePath}` })
+      } else {
+        setEstado({ ok: false, mensaje: `Error al exportar: ${res.error}` })
+      }
+      return
+    }
+
+    // Web: construye el backup desde el estado actual y dispara descarga del navegador.
+    try {
+      const backup = {
+        version:       1,
+        fecha:         new Date().toISOString(),
+        clientes:      state.clientes,
+        participantes: state.participantes,
+        sorteos:       state.sorteos,
+        config:        state.config,
+      }
+      const nombre = `sorteo-backup-${new Date().toISOString().slice(0, 10)}.json`
+      const blob   = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+      const url    = URL.createObjectURL(blob)
+      const a      = document.createElement('a')
+      a.href       = url
+      a.download   = nombre
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setEstado({ ok: true, mensaje: `Backup descargado: ${nombre}` })
+    } catch (err) {
+      setEstado({ ok: false, mensaje: `Error al generar backup: ${err.message}` })
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  async function seleccionarBackup() {
+    setEstado(null)
+    setOcupado(true)
+    const res = await desktopApi.importBackup()
+    setOcupado(false)
+
+    if (res.canceled) return
+    if (!res.ok) {
+      setEstado({ ok: false, mensaje: `Error al leer backup: ${res.error}` })
+      return
+    }
+
+    // Mostrar confirmación antes de restaurar
+    setDatosBackup(res.datos)
+    setConfirmando(true)
+    setPasswordRestore('')
+    setErrorPassword(false)
+  }
+
+  async function confirmarRestore() {
+    if (passwordRestore !== PASSWORD_SUPERADMIN) {
+      setErrorPassword(true)
+      return
+    }
+    setOcupado(true)
+    await actions.restaurarBackup(datosBackup)
+    setOcupado(false)
+    setConfirmando(false)
+    setDatosBackup(null)
+    setPasswordRestore('')
+    setEstado({ ok: true, mensaje: 'Backup restaurado correctamente.' })
+  }
+
+  function cancelarRestore() {
+    setConfirmando(false)
+    setDatosBackup(null)
+    setPasswordRestore('')
+    setErrorPassword(false)
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+
+      {/* Resumen del estado actual */}
+      <div className="rounded-2xl border border-gray-700 bg-gray-800/50 p-5 text-sm text-gray-300 space-y-1">
+        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Datos actuales</p>
+        <p>{totalClientes} cliente{totalClientes !== 1 ? 's' : ''} en base</p>
+        <p>{totalSorteos} sorteo{totalSorteos !== 1 ? 's' : ''} en historial</p>
+      </div>
+
+      {/* Exportar */}
+      <div className="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
+        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1">Exportar backup</p>
+        <p className="text-sm text-gray-400 mb-4">
+          Guarda todos los datos (clientes, historial, participantes y configuración) en un archivo JSON.
+        </p>
+        <button
+          onClick={exportar}
+          disabled={ocupado}
+          className="bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black
+            font-bold px-5 py-2.5 rounded-xl transition"
+        >
+          {ocupado ? 'Exportando…' : 'Exportar backup…'}
+        </button>
+      </div>
+
+      {/* Importar / Restaurar — solo Electron */}
+      {isElectron && (
+      <div className="rounded-2xl border border-orange-900 bg-orange-950/20 p-5">
+        <p className="text-xs font-bold uppercase tracking-wide text-orange-400 mb-1">Restaurar desde backup</p>
+        <p className="text-sm text-orange-200/70 mb-4">
+          Reemplaza <strong>todos</strong> los datos actuales con los del archivo de backup seleccionado.
+          Esta acción no se puede deshacer.
+        </p>
+
+        {!confirmando ? (
+          <button
+            onClick={seleccionarBackup}
+            disabled={ocupado}
+            className="bg-orange-700 hover:bg-orange-600 disabled:opacity-50 text-white
+              font-bold px-5 py-2.5 rounded-xl transition"
+          >
+            {ocupado ? 'Leyendo…' : 'Seleccionar archivo de backup…'}
+          </button>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-orange-700 bg-orange-950/40 p-3 text-sm text-orange-200">
+              <p className="font-semibold mb-1">Backup seleccionado — confirmar restauración</p>
+              <p className="text-orange-300/70 text-xs">
+                {datosBackup?.clientes?.length ?? 0} clientes ·{' '}
+                {datosBackup?.sorteos?.length ?? 0} sorteos ·{' '}
+                Fecha: {datosBackup?.fecha ? new Date(datosBackup.fecha).toLocaleString() : '—'}
+              </p>
+            </div>
+
+            <p className="text-sm text-gray-400">Ingresa la contraseña de SuperAdmin para confirmar:</p>
+            <input
+              type="password"
+              value={passwordRestore}
+              onChange={e => { setPasswordRestore(e.target.value); setErrorPassword(false) }}
+              onKeyDown={e => e.key === 'Enter' && confirmarRestore()}
+              placeholder="Contraseña"
+              className={`bg-gray-800 text-white rounded-xl px-4 py-2.5 border outline-none
+                ${errorPassword ? 'border-red-500' : 'border-gray-600 focus:border-orange-400'}`}
+            />
+            {errorPassword && <p className="text-red-400 text-sm">Contraseña incorrecta.</p>}
+
+            <div className="flex gap-3">
+              <button
+                onClick={confirmarRestore}
+                disabled={ocupado}
+                className="bg-orange-700 hover:bg-orange-600 disabled:opacity-50 text-white
+                  font-bold px-5 py-2.5 rounded-xl transition"
+              >
+                {ocupado ? 'Restaurando…' : 'Restaurar'}
+              </button>
+              <button
+                onClick={cancelarRestore}
+                className="bg-gray-700 hover:bg-gray-600 text-white font-semibold
+                  px-5 py-2.5 rounded-xl transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      )}
+
+      {/* Resultado */}
+      {estado && (
+        <div className={`rounded-xl border p-4 text-sm font-medium ${
+          estado.ok
+            ? 'border-green-700 bg-green-950/40 text-green-300'
+            : 'border-red-700 bg-red-950/40 text-red-300'
+        }`}>
+          {estado.ok ? '✓ ' : '✕ '}{estado.mensaje}
+        </div>
+      )}
+
+      {/* Nota */}
+      <div className="rounded-xl border border-gray-700 bg-gray-900/40 p-4 text-xs text-gray-500 space-y-1">
+        <p>El archivo de backup incluye clientes, historial de sorteos, participantes activos y configuración.</p>
+        {isElectron
+          ? <p>Al restaurar, los datos actuales son reemplazados completamente por los del backup.</p>
+          : <p>Envía el archivo descargado al super admin para consolidar los datos del equipo.</p>
+        }
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
 // Sección Importar .txt
 // ─────────────────────────────────────────────
 function SeccionImportar({ clientes, actions, preview, setPreview, importando, setImportando, resultadoImport, setResultadoImport, fileRef }) {
@@ -564,19 +813,20 @@ function SeccionImportar({ clientes, actions, preview, setPreview, importando, s
     if (!preview || importando) return
     setImportando(true)
     let nuevos = 0, actualizados = 0, omitidos = 0
-    for (const c of preview.clientes) {
-      const key = normalizar(c.nombre)
-      const existente = clientes.find(x => x.key === key)
-      if (!existente) {
+
+    const plan = planificarImportacion(preview.clientes, clientes)
+    for (const { cliente: c, accion, clienteExistente } of plan) {
+      if (accion === 'nuevo') {
         await actions.upsertCliente({ nombre: c.nombre, estrellas: c.estrellas })
         nuevos++
-      } else if (existente.estrellas !== c.estrellas) {
-        await actions.upsertCliente({ ...existente, estrellas: c.estrellas })
+      } else if (accion === 'actualizar') {
+        await actions.upsertCliente({ ...clienteExistente, estrellas: c.estrellas })
         actualizados++
       } else {
         omitidos++
       }
     }
+
     setImportando(false)
     setResultadoImport({ nuevos, actualizados, omitidos })
     setPreview(null)

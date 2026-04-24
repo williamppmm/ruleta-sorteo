@@ -115,6 +115,18 @@ export async function clear(storeName) {
   return reqP(os(storeName, 'readwrite').clear());
 }
 
+/**
+ * Escribe un array completo de registros en un store, reemplazando el contenido.
+ * Más eficiente que clear + put individual para operaciones masivas (ej. restaurar backup).
+ */
+export async function writeAllRecords(storeName, records) {
+  await openDB();
+  await reqP(os(storeName, 'readwrite').clear());
+  for (const rec of records) {
+    await reqP(os(storeName, 'readwrite').put(rec));
+  }
+}
+
 // ─────────────────────────────────────────────
 // Helpers específicos del dominio
 // ─────────────────────────────────────────────
