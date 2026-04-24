@@ -2,23 +2,22 @@
  * Módulo de Vetos
  *
  * VETO INTRADÍA
- *   Un ganador no aparece en la cuadrícula del siguiente sorteo del mismo día.
- *   Se compara por nombre normalizado.
+ *   Un ganador del evento actual no vuelve a participar en las rondas siguientes
+ *   del mismo evento. Se compara por nombre normalizado.
  *   Los vetados intradía se eliminan visualmente de la lista de participantes.
  *
- * VETO INTERDÍA
- *   Un ganador no puede ganar en los 2 días calendario siguientes a su victoria.
- *   SÍ aparece en la cuadrícula (el público lo ve participar).
- *   El algoritmo lo filtra internamente antes de calcular probabilidades.
+ * Nota: el veto interdía (entre días) fue eliminado — los eventos son semanales,
+ * no diarios, y la ventana de 0-2 días no corresponde a la realidad del negocio.
+ * La prioridad entre ganadores recientes y nuevos se maneja con estrellas.
  */
 
 import { normalizar } from '../utils/normalizar.js';
 
 /**
- * Veto intradía: el participante ya ganó en alguna ronda del sorteo de hoy.
+ * Veto intradía: el participante ya ganó en alguna ronda del evento actual.
  *
  * @param {Object} participante - { nombre, ... }
- * @param {Object[]} ganadoresDelDia - Array de objetos { nombre, ... } que ya ganaron hoy
+ * @param {Object[]} ganadoresDelDia - Array de objetos { nombre, ... } que ya ganaron en este evento
  * @returns {boolean}
  */
 export function estaVetadoIntradia(participante, ganadoresDelDia = []) {
@@ -27,51 +26,24 @@ export function estaVetadoIntradia(participante, ganadoresDelDia = []) {
 }
 
 /**
- * Veto interdía: el participante ganó hace 1 o 2 días calendario.
- * La comparación es por días enteros (no horas exactas).
- *
- * @param {Object} participante - { nombre, ... }
- * @param {Object[]} clientes - Base de clientes con { key, fechaUltimoPremio, ... }
- * @returns {boolean}
- */
-export function estaVetadoInterdia(participante, clientes = []) {
-  const key = normalizar(participante.nombre);
-  const cliente = clientes.find(c => c.key === key);
-  if (!cliente || !cliente.fechaUltimoPremio) return false;
-
-  // Comparar días calendario completos (no ms exactos)
-  const hoy = new Date(new Date().toDateString());
-  const fechaGanado = new Date(new Date(cliente.fechaUltimoPremio).toDateString());
-  const diffDias = Math.floor((hoy - fechaGanado) / 86400000);
-
-  // 0 = ganó hoy, 1 = ayer, 2 = antes de ayer → vetado en los tres casos
-  return diffDias >= 0 && diffDias <= 2;
-}
-
-/**
- * Clasifica participantes en elegibles y vetados (intradía + interdía).
- * Los vetados interdía aún aparecen en la cuadrícula visual; solo se usan
- * aquí para excluirlos del cálculo de probabilidades.
+ * Clasifica participantes en elegibles y vetados intradía.
  *
  * @param {Object[]} participantes
- * @param {Object[]} clientes
+ * @param {Object[]} _clientes - Conservado para compatibilidad con llamadas existentes; no se usa
  * @param {Object[]} ganadoresDelDia
- * @returns {{ elegibles: Object[], vetadosIntradia: Object[], vetadosInterdia: Object[] }}
+ * @returns {{ elegibles: Object[], vetadosIntradia: Object[] }}
  */
-export function clasificarParticipantes(participantes, clientes = [], ganadoresDelDia = []) {
+export function clasificarParticipantes(participantes, _clientes = [], ganadoresDelDia = []) {
   const vetadosIntradia = [];
-  const vetadosInterdia = [];
   const elegibles = [];
 
   for (const p of participantes) {
     if (estaVetadoIntradia(p, ganadoresDelDia)) {
       vetadosIntradia.push(p);
-    } else if (estaVetadoInterdia(p, clientes)) {
-      vetadosInterdia.push(p);
     } else {
       elegibles.push(p);
     }
   }
 
-  return { elegibles, vetadosIntradia, vetadosInterdia };
+  return { elegibles, vetadosIntradia };
 }
