@@ -25,7 +25,7 @@ export default function AdminPanel({ onIrAlSorteo, onVerGanadores }) {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white">Panel Admin</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Panel de configuración</h1>
         {hayGanadoresSesion && (
           <button
             onClick={onVerGanadores}

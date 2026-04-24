@@ -294,7 +294,7 @@ export default function SorteoPanel({ onGanador }) {
               Todas las rondas completadas
             </p>
             <p className="text-gray-500" style={{ fontSize: 'clamp(.9rem, 1.2vw, 1.05rem)' }}>
-              Vuelve al panel admin para programar una nueva sesión.
+              Vuelve al panel de configuración para programar una nueva sesión.
             </p>
           </div>
         )}

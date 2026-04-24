@@ -240,7 +240,7 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
             </div>
 
             <p className="text-sm text-gray-600">
-              Los pagos se registran desde Panel Admin - Historial
+              Los pagos se registran desde el Panel de configuración - Historial
             </p>
 
             <div className="mt-4">
