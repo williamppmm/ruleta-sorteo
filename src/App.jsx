@@ -5,6 +5,8 @@ import AdminPanel     from './panels/AdminPanel.jsx'
 import SuperAdminPanel from './panels/SuperAdminPanel.jsx'
 import SorteoPanel    from './panels/SorteoPanel.jsx'
 import GanadoresPanel from './panels/GanadoresPanel.jsx'
+import { isElectron } from './services/desktopApi.js'
+import { verificarPermiso, saveHandle, soportaFileSystemAccess } from './store/handleStore.js'
 
 const PANELES = {
   ADMIN:      'admin',
@@ -25,6 +27,12 @@ export default function App() {
         <p className="text-gray-400 text-lg">Cargando sistema...</p>
       </div>
     )
+  }
+
+  // En web, bloquear la app si no hay carpeta compartida autorizada.
+  // Impide que cualquier sorteo se ejecute contra IndexedDB por accidente.
+  if (!isElectron && state.modoPersistencia.tipo === 'idb') {
+    return <BloqueoCarpeta modoPersistencia={state.modoPersistencia} />
   }
 
   if (state.error) {
@@ -81,6 +89,95 @@ export default function App() {
         onIrAlSorteo={() => setPanel(PANELES.SORTEO)}
         onVerGanadores={() => setPanel(PANELES.GANADORES)}
       />
+    </div>
+  )
+}
+
+function BloqueoCarpeta({ modoPersistencia }) {
+  const [ocupado, setOcupado] = useState(false)
+  const [error,   setError]   = useState('')
+  const handle = modoPersistencia.handlePendiente
+  const nombre = modoPersistencia.nombre
+
+  if (!soportaFileSystemAccess) {
+    return (
+      <div className="aurora-bg min-h-screen flex items-center justify-center px-4">
+        <div className="bg-gray-900 border border-red-500/40 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+          <p className="text-5xl mb-4">⚠️</p>
+          <h2 className="text-red-400 text-xl font-bold mb-2">Navegador no compatible</h2>
+          <p className="text-gray-400 text-sm">
+            Esta app requiere <strong>Chrome</strong> o <strong>Edge</strong> para acceder a la carpeta compartida.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  async function reautorizar() {
+    setOcupado(true)
+    setError('')
+    try {
+      const ok = await verificarPermiso(handle, true)
+      if (ok) { window.location.reload(); return }
+      setError('Permiso denegado. Intenta de nuevo.')
+    } catch {
+      setError('No se pudo solicitar el permiso.')
+    }
+    setOcupado(false)
+  }
+
+  async function conectar() {
+    setOcupado(true)
+    setError('')
+    try {
+      const h = await window.showDirectoryPicker({ mode: 'readwrite' })
+      await saveHandle(h)
+      window.location.reload()
+    } catch (e) {
+      if (e.name !== 'AbortError') setError('No se pudo conectar la carpeta.')
+      setOcupado(false)
+    }
+  }
+
+  return (
+    <div className="aurora-bg min-h-screen flex items-center justify-center px-4">
+      <div className="bg-gray-900 border border-yellow-400/30 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+        <p className="text-5xl mb-4">📁</p>
+        <h2 className="text-yellow-400 text-2xl font-bold mb-2">Carpeta requerida</h2>
+        {handle ? (
+          <>
+            <p className="text-gray-300 text-sm mb-1">
+              La carpeta <span className="text-white font-semibold">"{nombre}"</span> necesita
+              ser autorizada para continuar.
+            </p>
+            <p className="text-gray-500 text-xs mb-6">
+              El navegador requiere confirmación cada sesión para acceder a archivos locales.
+            </p>
+            <button
+              onClick={reautorizar}
+              disabled={ocupado}
+              className="w-full bg-yellow-400 hover:bg-yellow-300 text-gray-950 font-bold py-3 rounded-xl transition disabled:opacity-50"
+            >
+              {ocupado ? 'Autorizando...' : `Autorizar "${nombre}"`}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-300 text-sm mb-6">
+              Esta app requiere conectar la carpeta compartida (Dropbox) para funcionar.
+              Sin ella no se puede ejecutar ningún sorteo.
+            </p>
+            <button
+              onClick={conectar}
+              disabled={ocupado}
+              className="w-full bg-yellow-400 hover:bg-yellow-300 text-gray-950 font-bold py-3 rounded-xl transition disabled:opacity-50"
+            >
+              {ocupado ? 'Conectando...' : 'Conectar carpeta compartida'}
+            </button>
+          </>
+        )}
+        {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
+      </div>
     </div>
   )
 }
