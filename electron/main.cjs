@@ -71,6 +71,12 @@ function ensureDataDir(targetPath) {
   }
 }
 
+function writeJsonAtomic(filePath, data) {
+  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`
+  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf8')
+  fs.renameSync(tmpPath, filePath)
+}
+
 // ── Ventana principal ──────────────────────────────────────────────────────
 let mainWindow = null
 
@@ -146,7 +152,7 @@ function registerIpcHandlers() {
     try {
       ensureDataDir()
       const filePath = path.join(dataPath, filename)
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8')
+      writeJsonAtomic(filePath, data)
       return true
     } catch (err) {
       console.error('[write-file]', filename, err.message)

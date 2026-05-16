@@ -10,7 +10,7 @@
 import { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import {
   STORES, CONFIG_DEFAULT, cargarEstadoInicial, saveConfig,
-  put, add, remove, clear, writeAllRecords,
+  getConfig, put, add, remove, clear, writeAllRecords,
   inicializarBackend,
 } from './persistence.js';
 import { normalizar, capitalizar } from '../utils/normalizar.js';
@@ -228,6 +228,15 @@ export function StoreProvider({ children }) {
   }, []);
 
   // ── Acciones ─────────────────────────────────
+
+  /** Recarga los JSON activos y sincroniza el estado en memoria. */
+  const recargarEstadoDesdeDisco = useCallback(async () => {
+    const datos = await cargarEstadoInicial();
+    const migrado = await migrarIdentidad(datos.clientes, datos.sorteos);
+    const payload = { ...datos, ...migrado };
+    dispatch({ type: 'CARGAR_TODO', payload });
+    return payload;
+  }, []);
 
   /** Actualiza la configuración del sorteo. */
   const setConfig = useCallback(async (cambios) => {
@@ -473,24 +482,41 @@ export function StoreProvider({ children }) {
    *   2. Actualiza fechaUltimoPremio del cliente.
    *   3. Agrega el ID a idsRondasDelDia en config.
    */
-  const registrarGanador = useCallback(async ({ ganadorNombre, valorPremio, titulo }) => {
+  const registrarGanador = useCallback(async ({
+    ganadorNombre,
+    valorPremio,
+    titulo,
+    clientesSnapshot,
+    totalParticipantes,
+  }) => {
     const fecha = new Date().toISOString();
     const pad = n => String(n).padStart(2, '0');
     const d = new Date(fecha);
     const hora = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     const ganadorKey = normalizar(ganadorNombre);
+    const configActual = await getConfig();
+    const idsRondasActuales = configActual.idsRondasDelDia || [];
+    const indicePremio = idsRondasActuales.length;
+    const valorPremioFinal =
+      valorPremio
+      || configActual.premiosPorRonda?.[indicePremio]
+      || configActual.premiosPorRonda?.[configActual.rondaActual]
+      || state.config.premiosPorRonda?.[indicePremio]
+      || state.config.premiosPorRonda?.[state.config.rondaActual]
+      || '';
+    const clientesBase = clientesSnapshot || state.clientes;
 
     // Persistir sorteo
-    const clienteGanador = state.clientes.find(c => c.key === ganadorKey);
+    const clienteGanador = clientesBase.find(c => c.key === ganadorKey);
     const sorteo = {
       fecha,
       hora,
-      titulo: titulo || state.config.titulo || 'Sorteo',
-      valorPremio,
+      titulo: titulo || configActual.titulo || state.config.titulo || 'Sorteo',
+      valorPremio: valorPremioFinal,
       ganadorNombre,
       ganadorKey,
       ganadorClienteId: clienteGanador?.clienteId ?? null,
-      totalParticipantes: state.participantes.length,
+      totalParticipantes: totalParticipantes ?? state.participantes.length,
       pagado: false,
       fechaPago: null,
     };
@@ -499,7 +525,7 @@ export function StoreProvider({ children }) {
     dispatch({ type: 'ADD_SORTEO', payload: sorteoCompleto });
 
     // Actualizar fechaUltimoPremio del cliente
-    const clienteActual = state.clientes.find(c => c.key === ganadorKey);
+    const clienteActual = clientesBase.find(c => c.key === ganadorKey);
     if (clienteActual) {
       const clienteActualizado = { ...clienteActual, fechaUltimoPremio: fecha };
       await put(STORES.CLIENTES, clienteActualizado);
@@ -507,9 +533,9 @@ export function StoreProvider({ children }) {
     }
 
     // Registrar ID en config del día
-    const idsActualizados = [...(state.config.idsRondasDelDia || []), id];
+    const idsActualizados = [...new Set([...idsRondasActuales, id])];
     const cambiosConfig = { idsRondasDelDia: idsActualizados };
-    await saveConfig({ ...state.config, ...cambiosConfig });
+    await saveConfig({ ...configActual, ...cambiosConfig });
     dispatch({ type: 'SET_CONFIG', payload: cambiosConfig });
 
     return sorteoCompleto;
@@ -539,7 +565,11 @@ export function StoreProvider({ children }) {
     .map(s => ({ nombre: s.ganadorNombre }));
 
   /** Premio de la ronda actual según configuración. */
-  const premioRondaActual = state.config.premiosPorRonda?.[state.config.rondaActual] ?? '';
+  const indicePremioActual = state.config.idsRondasDelDia?.length ?? state.config.rondaActual;
+  const premioRondaActual =
+    state.config.premiosPorRonda?.[indicePremioActual]
+    ?? state.config.premiosPorRonda?.[state.config.rondaActual]
+    ?? '';
 
   /** ¿El sorteo del día está terminado? (todas las rondas completadas) */
   const sorteoTerminado =
@@ -550,6 +580,7 @@ export function StoreProvider({ children }) {
       state,
       actions: {
         setConfig,
+        recargarEstadoDesdeDisco,
         addParticipante,
         updateParticipante,
         deleteParticipante,

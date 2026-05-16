@@ -48,14 +48,18 @@ function construirSecuencia(totalBoxes, targetIdx) {
 
 export default function SorteoPanel({ onGanador }) {
   const { state, actions, derived } = useStore()
+  const { recargarEstadoDesdeDisco } = actions
   const [fase, setFase] = useState('espera')
   const [ganadorNombre, setGanadorNombre] = useState(null)
   const [indiceActivo, setIndiceActivo] = useState(null)
   const [indiceGanador, setIndiceGanador] = useState(null)
   const [participantesSnapshot, setParticipantesSnapshot] = useState([])
+  const [estadoSincronizacion, setEstadoSincronizacion] = useState('verificando')
+  const [mensajeSincronizacion, setMensajeSincronizacion] = useState('Verificando datos del sorteo...')
   const animRef = useRef(null)
   const timeoutRef = useRef(null)
   const settleTimeoutRef = useRef(null)
+  const sorteoEnCursoRef = useRef(false)
 
   const cfg = state.config
   const ronda = cfg.rondaActual
@@ -71,6 +75,8 @@ export default function SorteoPanel({ onGanador }) {
   const esPrimerSorteoDeLaSesion = rondasCompletadas === 0
   const faltantesMinimos = participantesFaltantes(visibles.length)
   const cumpleMinimo = cumpleMinimoParticipantes(visibles.length, esPrimerSorteoDeLaSesion)
+  const rondaSincronizada = cfg.rondaActual === rondasCompletadas
+  const datosListosParaSorteo = estadoSincronizacion === 'listo' && rondaSincronizada
 
   const logDebug = useCallback((mensaje, data = null) => {
     const stamp = new Date().toLocaleTimeString('es-CO', { hour12: false })
@@ -84,6 +90,42 @@ export default function SorteoPanel({ onGanador }) {
   }, [])
 
   useEffect(() => () => limpiarAnimacion(), [limpiarAnimacion])
+
+  useEffect(() => {
+    if (fase !== 'espera' || todasRondasCompletadas) return
+
+    let cancelado = false
+
+    async function verificarDatos() {
+      try {
+        await Promise.resolve()
+        if (cancelado) return
+        setEstadoSincronizacion('verificando')
+        setMensajeSincronizacion('Verificando datos del sorteo...')
+
+        const datos = await recargarEstadoDesdeDisco()
+        if (cancelado) return
+        const ids = datos.config.idsRondasDelDia || []
+        if (datos.config.rondaActual !== ids.length) {
+          setEstadoSincronizacion('bloqueado')
+          setMensajeSincronizacion('Esperando sincronizacion de la ronda anterior. Vuelve al panel y entra de nuevo en unos segundos.')
+          return
+        }
+        setEstadoSincronizacion('listo')
+        setMensajeSincronizacion('')
+      } catch (err) {
+        if (cancelado) return
+        setEstadoSincronizacion('bloqueado')
+        setMensajeSincronizacion('No se pudieron verificar los datos del sorteo: ' + err.message)
+      }
+    }
+
+    verificarDatos()
+
+    return () => {
+      cancelado = true
+    }
+  }, [recargarEstadoDesdeDisco, fase, todasRondasCompletadas])
 
   const animarRuleta = useCallback((targetName, participantesAnimacion) => {
     return new Promise(resolve => {
@@ -152,8 +194,9 @@ export default function SorteoPanel({ onGanador }) {
   }, [logDebug])
 
   const iniciar = useCallback(async () => {
-    if (fase !== 'espera' || visibles.length === 0) return
+    if (sorteoEnCursoRef.current || fase !== 'espera' || visibles.length === 0) return
     if (todasRondasCompletadas) return
+    if (!datosListosParaSorteo) return
     if (!cumpleMinimo) {
       logDebug('Intento bloqueado por minimo de participantes.', {
         visibles: visibles.length,
@@ -161,17 +204,59 @@ export default function SorteoPanel({ onGanador }) {
       })
       return
     }
+    sorteoEnCursoRef.current = true
 
     let ganador
+    let visiblesSorteo = []
+    let premioSorteo = premio
+    let configSorteo = cfg
+    let snapshot
     try {
-      ganador = seleccionarGanador(visibles, state.clientes, derived.ganadoresDelDia)
+      snapshot = await actions.recargarEstadoDesdeDisco()
+      configSorteo = snapshot.config
+
+      const idsRondas = configSorteo.idsRondasDelDia || []
+      if (idsRondas.length >= configSorteo.totalRondas) {
+        logDebug('Intento bloqueado porque la sesion ya esta completa en disco.', {
+          idsRondas,
+          totalRondas: configSorteo.totalRondas,
+        })
+        sorteoEnCursoRef.current = false
+        return
+      }
+
+      const ganadoresDelDiaActuales = snapshot.sorteos
+        .filter(s => idsRondas.includes(s.id))
+        .map(s => ({ nombre: s.ganadorNombre }))
+      visiblesSorteo = snapshot.participantes.filter(
+        p => !estaVetadoIntradia(p, ganadoresDelDiaActuales)
+      )
+
+      const esPrimerSorteoActual = idsRondas.length === 0
+      if (!cumpleMinimoParticipantes(visiblesSorteo.length, esPrimerSorteoActual)) {
+        logDebug('Intento bloqueado por minimo de participantes despues de recargar.', {
+          visibles: visiblesSorteo.length,
+          minimo: MIN_PARTICIPANTES_POR_RONDA,
+        })
+        sorteoEnCursoRef.current = false
+        return
+      }
+
+      const indicePremio = idsRondas.length
+      premioSorteo =
+        configSorteo.premiosPorRonda?.[indicePremio]
+        ?? configSorteo.premiosPorRonda?.[configSorteo.rondaActual]
+        ?? premio
+
+      ganador = seleccionarGanador(visiblesSorteo, snapshot.clientes, ganadoresDelDiaActuales)
       logDebug('Ganador calculado por el motor.', {
         ganador,
-        visibles: visibles.map(p => p.nombre),
-        clientes: state.clientes.length,
-        ganadoresDelDia: derived.ganadoresDelDia,
+        visibles: visiblesSorteo.map(p => p.nombre),
+        clientes: snapshot.clientes.length,
+        ganadoresDelDia: ganadoresDelDiaActuales,
       })
     } catch (e) {
+      sorteoEnCursoRef.current = false
       logDebug('Error al seleccionar ganador.', { message: e.message })
       alert('Error al seleccionar ganador: ' + e.message)
       return
@@ -181,39 +266,48 @@ export default function SorteoPanel({ onGanador }) {
       logDebug('El motor devolvio un resultado invalido.', { ganador })
       alert('El sorteo no pudo continuar porque el ganador calculado es invalido.')
       setFase('espera')
+      sorteoEnCursoRef.current = false
       return
     }
 
     limpiarAnimacion()
     setGanadorNombre(null)
     setIndiceGanador(null)
-    setParticipantesSnapshot(visibles)
+    setParticipantesSnapshot(visiblesSorteo)
     setFase('animando')
 
-    await animarRuleta(ganador.nombre, visibles)
+    try {
+      const sorteo = await actions.registrarGanador({
+        ganadorNombre: ganador.nombre,
+        valorPremio: premioSorteo,
+        titulo: configSorteo.titulo,
+        clientesSnapshot: snapshot.clientes,
+        totalParticipantes: snapshot.participantes.length,
+      })
+      logDebug('Ganador registrado en el historial.', { sorteo })
 
-    const sorteo = await actions.registrarGanador({
-      ganadorNombre: ganador.nombre,
-      valorPremio: premio,
-      titulo: cfg.titulo,
-    })
-    logDebug('Ganador registrado en el historial.', { sorteo })
+      await animarRuleta(ganador.nombre, visiblesSorteo)
 
-    setGanadorNombre(ganador.nombre)
-    setFase('ganador')
-    timeoutRef.current = setTimeout(() => onGanador(sorteo), 5200)
+      setGanadorNombre(ganador.nombre)
+      setFase('ganador')
+      timeoutRef.current = setTimeout(() => onGanador(sorteo), 5200)
+    } catch (e) {
+      sorteoEnCursoRef.current = false
+      setFase('espera')
+      logDebug('Error al registrar el ganador.', { message: e.message })
+      alert('Error al guardar el ganador: ' + e.message)
+    }
   }, [
     actions,
     animarRuleta,
-    cfg.titulo,
-    derived.ganadoresDelDia,
+    cfg,
     fase,
     limpiarAnimacion,
     logDebug,
     onGanador,
     premio,
-    state.clientes,
     cumpleMinimo,
+    datosListosParaSorteo,
     todasRondasCompletadas,
     visibles,
   ])
@@ -301,19 +395,28 @@ export default function SorteoPanel({ onGanador }) {
 
         {fase === 'espera' && !todasRondasCompletadas && (
           <div className="flex flex-col items-center gap-3">
-            <button
-              onClick={iniciar}
-              disabled={participantesRender.length === 0 || !cumpleMinimo}
-              className="font-black text-black bg-yellow-500 hover:bg-yellow-400
-                disabled:opacity-30 disabled:cursor-not-allowed
-                px-14 py-5 rounded-2xl transition-all duration-200 active:scale-95"
-              style={{
-                fontSize: 'clamp(1.3rem, 2vw, 2rem)',
-                boxShadow: '0 0 40px rgba(234,179,8,.5)',
-              }}
-            >
-              INICIAR SORTEO
-            </button>
+            {datosListosParaSorteo ? (
+              <button
+                onClick={iniciar}
+                disabled={participantesRender.length === 0 || !cumpleMinimo}
+                className="font-black text-black bg-yellow-500 hover:bg-yellow-400
+                  disabled:opacity-30 disabled:cursor-not-allowed
+                  px-14 py-5 rounded-2xl transition-all duration-200 active:scale-95"
+                style={{
+                  fontSize: 'clamp(1.3rem, 2vw, 2rem)',
+                  boxShadow: '0 0 40px rgba(234,179,8,.5)',
+                }}
+              >
+                INICIAR SORTEO
+              </button>
+            ) : (
+              <p
+                className="text-yellow-300 font-bold"
+                style={{ fontSize: 'clamp(1rem, 1.4vw, 1.25rem)' }}
+              >
+                {mensajeSincronizacion}
+              </p>
+            )}
             {esPrimerSorteoDeLaSesion && !cumpleMinimo && (
               <p
                 className="text-gray-400"
