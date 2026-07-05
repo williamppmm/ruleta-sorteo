@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useStore } from '../store/useStore.jsx'
 import ConfettiScreen from '../components/ConfettiScreen.jsx'
 import WinnerBadge from '../components/WinnerBadge.jsx'
@@ -5,6 +6,7 @@ import { formatPrize } from '../utils/helpers.js'
 
 export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolverAdmin }) {
   const { state, actions } = useStore()
+  const [avanzando, setAvanzando] = useState(false)
   const cfg = state.config
 
   const rondasCompletadas = cfg.idsRondasDelDia?.length ?? 0
@@ -38,6 +40,8 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
     : new Date().toISOString()
 
   async function handleSiguienteRonda() {
+    if (avanzando) return
+    setAvanzando(true)
     await actions.siguienteRonda()
     onSiguienteRonda()
   }
@@ -128,7 +132,8 @@ export default function GanadoresPanel({ ultimoSorteo, onSiguienteRonda, onVolve
             <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
               <button
                 onClick={handleSiguienteRonda}
-                className="rounded-2xl bg-yellow-500 px-14 py-5 font-black text-black transition-all duration-200 active:scale-95 hover:bg-yellow-400"
+                disabled={avanzando}
+                className="rounded-2xl bg-yellow-500 px-14 py-5 font-black text-black transition-all duration-200 active:scale-95 hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   fontSize: 'clamp(1.3rem, 2vw, 2rem)',
                   boxShadow: '0 0 40px rgba(234,179,8,.5)',

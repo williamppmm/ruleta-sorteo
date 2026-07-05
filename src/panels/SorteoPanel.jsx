@@ -277,6 +277,8 @@ export default function SorteoPanel({ onGanador }) {
     setFase('animando')
 
     try {
+      await animarRuleta(ganador.nombre, visiblesSorteo)
+
       const sorteo = await actions.registrarGanador({
         ganadorNombre: ganador.nombre,
         valorPremio: premioSorteo,
@@ -285,8 +287,6 @@ export default function SorteoPanel({ onGanador }) {
         totalParticipantes: snapshot.participantes.length,
       })
       logDebug('Ganador registrado en el historial.', { sorteo })
-
-      await animarRuleta(ganador.nombre, visiblesSorteo)
 
       setGanadorNombre(ganador.nombre)
       setFase('ganador')
