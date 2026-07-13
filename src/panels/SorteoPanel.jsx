@@ -7,6 +7,7 @@ import { estaVetadoIntradia } from '../engine/vetos.js'
 import { formatPrize } from '../utils/helpers.js'
 import { beep, ding } from '../utils/audio.js'
 import { MIN_PARTICIPANTES_POR_RONDA, cumpleMinimoParticipantes, participantesFaltantes } from '../domain/participantes.js'
+import { idsRondasPersistidos, indiceRondaActiva } from '../domain/rondas.js'
 
 const DURACION_ANIMACION = 7200
 const PAUSA_GANADOR_MS = 900
@@ -62,7 +63,6 @@ export default function SorteoPanel({ onGanador }) {
   const sorteoEnCursoRef = useRef(false)
 
   const cfg = state.config
-  const ronda = cfg.rondaActual
   const total = cfg.totalRondas
   const premio = derived.premioRondaActual
 
@@ -71,12 +71,12 @@ export default function SorteoPanel({ onGanador }) {
   )
   const participantesRender = fase === 'espera' ? visibles : participantesSnapshot
   const rondasCompletadas = cfg.idsRondasDelDia?.length ?? 0
+  const ronda = indiceRondaActiva(cfg)
   const todasRondasCompletadas = rondasCompletadas >= cfg.totalRondas
   const esPrimerSorteoDeLaSesion = rondasCompletadas === 0
   const faltantesMinimos = participantesFaltantes(visibles.length)
   const cumpleMinimo = cumpleMinimoParticipantes(visibles.length, esPrimerSorteoDeLaSesion)
-  const rondaSincronizada = cfg.rondaActual === rondasCompletadas
-  const datosListosParaSorteo = estadoSincronizacion === 'listo' && rondaSincronizada
+  const datosListosParaSorteo = estadoSincronizacion === 'listo'
 
   const logDebug = useCallback((mensaje, data = null) => {
     const stamp = new Date().toLocaleTimeString('es-CO', { hour12: false })
@@ -105,8 +105,7 @@ export default function SorteoPanel({ onGanador }) {
 
         const datos = await recargarEstadoDesdeDisco()
         if (cancelado) return
-        const ids = datos.config.idsRondasDelDia || []
-        if (datos.config.rondaActual !== ids.length) {
+        if (!idsRondasPersistidos(datos.config, datos.sorteos)) {
           setEstadoSincronizacion('bloqueado')
           setMensajeSincronizacion('Esperando sincronizacion de la ronda anterior. Vuelve al panel y entra de nuevo en unos segundos.')
           return

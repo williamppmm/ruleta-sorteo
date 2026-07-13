@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { normalizarPremios, puedeIrAlSorteo } from './rondas.js';
+import {
+  idsRondasPersistidos,
+  indiceRondaActiva,
+  normalizarPremios,
+  puedeIrAlSorteo,
+  rondasCompletadas,
+} from './rondas.js';
 
 describe('normalizarPremios', () => {
   it('rellena con cadenas vacías si faltan entradas', () => {
@@ -18,6 +24,35 @@ describe('normalizarPremios', () => {
     const original = ['5000'];
     normalizarPremios(original, 3);
     expect(original).toEqual(['5000']);
+  });
+});
+
+describe('estado de rondas compartido', () => {
+  it('usa idsRondasDelDia como fuente de rondas completadas', () => {
+    const cfg = { totalRondas: 4, rondaActual: 0, idsRondasDelDia: [40] };
+
+    expect(rondasCompletadas(cfg)).toBe(1);
+    expect(indiceRondaActiva(cfg)).toBe(1);
+  });
+
+  it('limita el indice activo cuando ya se completaron todas las rondas', () => {
+    const cfg = { totalRondas: 4, rondaActual: 0, idsRondasDelDia: [40, 41, 42, 43] };
+
+    expect(indiceRondaActiva(cfg)).toBe(3);
+  });
+
+  it('considera sincronizada una ronda si todos sus ids existen en sorteos', () => {
+    const cfg = { idsRondasDelDia: [40] };
+    const sorteos = [{ id: 39 }, { id: 40 }];
+
+    expect(idsRondasPersistidos(cfg, sorteos)).toBe(true);
+  });
+
+  it('espera sincronizacion si config referencia un sorteo que aun no llego al historial', () => {
+    const cfg = { idsRondasDelDia: [40, 41] };
+    const sorteos = [{ id: 40 }];
+
+    expect(idsRondasPersistidos(cfg, sorteos)).toBe(false);
   });
 });
 

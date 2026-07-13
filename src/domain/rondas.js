@@ -20,6 +20,21 @@ export function normalizarPremios(premiosActuales, nuevasCantidad) {
   return arr.slice(0, nuevasCantidad);
 }
 
+export function rondasCompletadas(config) {
+  return config.idsRondasDelDia?.length ?? 0;
+}
+
+export function indiceRondaActiva(config) {
+  const total = config.totalRondas ?? 1;
+  return Math.min(rondasCompletadas(config), Math.max(total - 1, 0));
+}
+
+export function idsRondasPersistidos(config, sorteos) {
+  const ids = config.idsRondasDelDia ?? [];
+  const idsSorteos = new Set(sorteos.map(s => s.id));
+  return ids.every(id => idsSorteos.has(id));
+}
+
 /**
  * Determina si el operador puede avanzar al sorteo.
  *
@@ -38,7 +53,7 @@ export function normalizarPremios(premiosActuales, nuevasCantidad) {
 export function puedeIrAlSorteo(config, sorteoTerminado, totalParticipantes, minimoParticipantes) {
   if (!config.registroCerrado) return false;
   if (sorteoTerminado) return false;
-  const esPrimeraSesion = (config.idsRondasDelDia?.length ?? 0) === 0;
+  const esPrimeraSesion = rondasCompletadas(config) === 0;
   if (esPrimeraSesion && totalParticipantes < minimoParticipantes) return false;
   return true;
 }

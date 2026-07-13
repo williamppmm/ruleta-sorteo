@@ -367,9 +367,10 @@ export function StoreProvider({ children }) {
     dispatch({ type: 'SET_CONFIG', payload: cambios });
   }, [state.config]);
 
-  /** Avanza a la siguiente ronda (conserva participantes y registro cerrado, solo incrementa ronda). */
+  /** Sincroniza la ronda activa con las rondas ya registradas. */
   const siguienteRonda = useCallback(async () => {
-    const nuevaRonda = state.config.rondaActual + 1;
+    const rondasCompletadas = state.config.idsRondasDelDia?.length ?? 0;
+    const nuevaRonda = Math.min(rondasCompletadas, state.config.totalRondas - 1);
     const cambios = { rondaActual: nuevaRonda };
     await saveConfig({ ...state.config, ...cambios });
     dispatch({ type: 'SET_CONFIG', payload: cambios });
@@ -534,7 +535,8 @@ export function StoreProvider({ children }) {
 
     // Registrar ID en config del día
     const idsActualizados = [...new Set([...idsRondasActuales, id])];
-    const cambiosConfig = { idsRondasDelDia: idsActualizados };
+    const rondaActual = Math.min(idsActualizados.length, configActual.totalRondas - 1);
+    const cambiosConfig = { idsRondasDelDia: idsActualizados, rondaActual };
     await saveConfig({ ...configActual, ...cambiosConfig });
     dispatch({ type: 'SET_CONFIG', payload: cambiosConfig });
 
